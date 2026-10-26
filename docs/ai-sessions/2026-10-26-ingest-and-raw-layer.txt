@@ -1,0 +1,2397 @@
+ ▐▛███▛█   Claude Code v2.1.306
+▝▜██████▀  Opus 5.5 · Claude Pro
+ ▝▝   ▝▝   ~\job-search\WPRDC-Data-Pipeline-Exercise
+
+
+❯ Hello, Claude.  I am applying to a job with Allegheny County, and the sent    
+  out this email with an exercise for me to complete.  I will put the email     
+  contents below.  Know that I have already interacted with Claude.ai and       
+  learned a bit about the datasets and have also explored hitting WPRDC site    
+  already, and found it to be somewhat shaky in its responses.  Also, I have    
+  installed duckdb, and I want to record details about my hits to the site      
+  while I attend to the exercise proper.  Let me first give you the contents of 
+  the email below, and then we will continue this discussion.                   
+  Stephen Tirone,                                                               
+                                                                                
+  Thank you for applying for the position of Senior Data Engineer at Allegheny  
+  County. Because of the number of qualified applicants, we are sending out the 
+  following exercise before we determine who we would like to invite for a      
+  one-on-one interview.                                                         
+  Please provide your submission via email no later than 11:00 am on November   
+  2nd.                                                                          
+  WPRDC Data Pipeline Exercise                                                  
+  Pick one dataset from the list below. Build a small, reproducible pipeline    
+  that ingests it from the WPRDC CKAN API, produces a clean analytical table,   
+  and tells us something useful about the data. Your completed script and       
+  markdown document should be available in a public GitHub or GitLab            
+  repository.                                                                   
+  Requirements                                                                  
+  Ingest the data programmatically (CKAN API or resource URL). No manual        
+  downloads.                                                                    
+  Land raw data unchanged, then transform into a cleaned/modeled layer. Use any 
+  local stack you like (Python, SQL, DuckDB, SQLite, Postgres via Docker, dbt,  
+  etc). No cloud accounts required.                                             
+  Make it re-runnable. Running it twice must not duplicate or corrupt data.     
+  Explain how you’d handle the dataset being updated.                           
+  Add data quality checks that would actually fail on bad data. Include at      
+  least one check you wrote because of something you found in this dataset.     
+  Produce one output table that could be used to answer a question you chose    
+  (state the question).                                                         
+  Write a README.md covering decision you made in the process: the three most   
+  important design decisions and the alternatives you rejected, what surprised  
+  you in the data, what you’d do differently at 100x scale or with daily        
+  refreshes, and what you didn’t do and why.                                    
+  AI disclosure: AI tools are allowed. Tell us which you used and for what      
+  purpose. We will ask you to walk through your code live should you progress   
+  to an interview round.                                                        
+  Data Sets                                                                     
+  Allegheny County Property Sale Transactions                                   
+  Allegheny County Weights and Measures Inspections                             
+  Allegheny County Air Quality                                                  
+  Allegheny County Jail Census                                                  
+  Geoffrey L Arnold                                                             
+                                                                                
+  Deputy CIO - Chief Data and Analytics Officer                                 
+
+● Got it. Here's my summary of the exercise so we're working from the same
+  picture.
+
+  Deadline: 11:00 am on November 2. Today is October 26, so you have about a
+  week.
+
+  What they want:
+  1. Pick one dataset: Property Sales, Weights & Measures Inspections, Air
+     Quality, or Jail Census.
+  2. Ingest it from the WPRDC CKAN API. No manual downloads.
+  3. Keep two layers: a raw layer stored unchanged, and a cleaned/modeled layer
+     built from it. DuckDB works well for this.
+  4. Make it safe to re-run. Running it twice can't duplicate or corrupt data,
+     and you explain how you'd handle dataset updates.
+  5. Add data quality checks that really fail on bad data. At least one has to
+     come from something you found in this dataset.
+  6. Produce one output table that answers a question you state.
+  7. Write a README covering:
+     - your three biggest design decisions and the alternatives you rejected
+     - what surprised you in the data
+     - what you'd change at 100x scale or with daily refreshes
+     - what you left out and why
+     - AI disclosure
+  8. Publish it in a public GitHub or GitLab repo. You may have to walk through
+     the code live.
+
+  Your idea of recording your hits to the site fits this well. If every API call
+  goes into a DuckDB table (timestamp, URL, status, latency, row count,
+  retries, errors), you get three things:
+  - Evidence for the README: the site's shakiness becomes measured data you can
+    point to.
+  - Lineage and freshness tracking: an ingestion audit table is something a
+    Senior Data Engineer pipeline should have anyway.
+  - A basis for the "dataset updated" answer: you can compare last_modified in
+    each resource's metadata with your last successful pull.
+
+  I'll wait for the rest. When you're ready, it would help to know:
+  - which dataset you're leaning toward, and what you learned about it in
+    Claude.ai
+  - what "shaky" looked like (timeouts, 5xx errors, truncated responses from
+    datastore_search, slow SQL endpoint?)
+  - whether you want to log only the exploratory hits you make now, or build the
+    logging into the pipeline itself (I'd suggest both, with the same table)
+
+✻ Sautéed for 12s · done 3:28 PM
+
+❯ I like all four datasets, but let's start with the Property Sale transactions 
+  dataset.  When I tried accessing it last night using the ckanapi library, I   
+  got some blank responses before getting a valid response, and then an HTML    
+  response which was not the json I expected, so these are the things I would   
+  call "shaky".  I definitely want to make the logging part of the production   
+  pipeline, as well as record the results during development. In Claude.ai, the 
+  following was suggested:                                                      
+  "                                                                             
+  wprdc_schema.sql creates three tables:                                        
+                                                                                
+  fetch_run: one row per script execution.                                      
+  fetch_attempt: one row per HTTP request, including each retry. It records the 
+  timing, HTTP status, an outcome category, the error class and message, bytes  
+  received, and response headers such as Server and Retry-After. It also keeps  
+  a 500-character snippet of the response body, because failures often return   
+  an HTML error page that tells you which layer gave up (nginx, CKAN, or a      
+  proxy).                                                                       
+  fetch_resource: one row per resource you load, with a pointer to the raw      
+  table it landed in.                                                           
+                                                                                
+  It also creates two views, v_reliability_by_hour and v_failure_breakdown, so  
+  you can start analyzing failures right away.                                  
+  "                                                                             
+  What do you think of this?                                                    
+
+● The three-table structure (run, then attempt, then resource) is right, and
+  logging each retry as its own row is the most important part. A few changes
+  would make it fit the failures you actually saw.
+
+  1. Drop ckanapi for the fetching. It hides what you want to record. When it
+  gets a blank or HTML response it raises a generic error, and you lose the
+  status code, headers and body. It also doesn't tell you about retries. Use
+  requests (or httpx) with a small retry wrapper of your own, so every attempt
+  goes through code that logs it. This also helps in the interview, because you
+  can explain every line.
+
+  2. Classify each attempt by what came back, not by the HTTP status. Your two
+  failures were probably HTTP 200 responses. A blank body and an HTML page
+  served as a 200 are classic signs of a proxy or gateway problem. The outcome
+  categories should come from checking the response:
+  - ok
+  - empty_body
+  - non_json (the content-type or parse doesn't match)
+  - ckan_error (valid JSON, but CKAN returned "success": false)
+  - http_error
+  - timeout
+  - connection_error
+
+  For that you need to store content_type, content_length, and whether the body
+  parsed. The 500-character snippet is a good idea, and it matters most for
+  exactly these cases.
+
+  3. Record the request itself. Store the endpoint, the parameters (resource_id,
+  offset/limit or SQL) and the page number. Without them you can't tell whether
+  failures cluster on large offsets, which is a common pattern with CKAN
+  datastore paging.
+
+  4. Make fetch_resource carry the update-detection data. Capture the resource's
+  last_modified, the package's metadata_modified, the record count CKAN
+  reports, and a SHA-256 of what you landed. That gives you most of the "how
+  would you handle updates" answer: if the metadata hasn't changed, skip the
+  fetch; if the hash is the same, skip the reload.
+
+  5. Treat "raw" as the files you fetched, not only a table. The requirement is
+  to land raw data unchanged. The most faithful version is the response bytes
+  written to disk, under a path that includes the run ID, with fetch_resource
+  pointing to that file and its hash. The raw DuckDB table is then built from
+  that file. This also lets you rebuild everything without hitting the shaky API
+  again.
+
+  6. Think about the fetch strategy. Property sales is a large dataset, so
+  paging through datastore_search means hundreds of requests, and each one is a
+  chance to fail. Paging by offset can also skip or duplicate rows if the data
+  changes partway through. CKAN's bulk dump endpoint
+  (/datastore/dump/<resource_id>) gets the whole thing in one request. I'd test
+  both and let your fetch log tell you which is more reliable. That would make a
+  strong README point backed by evidence.
+
+  7. Smaller points:
+  - Store timestamps in UTC. v_reliability_by_hour will mislead if you mix local
+    time and UTC.
+  - Write each attempt row as soon as it happens, so a crash still leaves the
+    evidence behind.
+  - DuckDB allows only one writer. If you have the database open in the DuckDB
+    CLI while the pipeline runs, the pipeline's writes will fail. Close the CLI
+    first, or open it read-only.
+  - Put the logging tables in their own schema (e.g. ops.*) in the same database
+    file, separate from raw.* and the cleaned layer.
+  - The two views are fine for development. Just don't let reliability analysis
+    take time away from the required parts.
+
+  If you'd like, I can draft the revised schema and the fetch-and-log module
+  next. Then you can start collecting real attempt data right away while we
+  explore the dataset.
+
+✻ Churned for 26s · done 3:37 PM
+
+❯ I would agree with all of that.  Please proceed.                              
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Python 3.13 already has duckdb and requests installed. Next I'll look up the
+  dataset's metadata on CKAN.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The package real-estate-sales contains one main resource plus year-specific
+  resources from 2012-2026, all refreshed this morning. Now I'll check the size
+  and field list of the main resource.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Found CloudFront→nginx→CKAN layering, which likely explains the HTML error
+  responses, so I'll capture CloudFront-specific headers too. The sample record
+  also shows _id starting at 16,966,258 (suggesting datastore rebuilds, so it's
+  not a stable key) plus $1 sales and whitespace in municipality names—next I'll
+  check the environment before writing code.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Timezone conversion works in DuckDB, and pytest is available. Now I'll write
+  the code: the schema, a logging HTTP client, a CKAN wrapper, an ingest command
+  and a probe command.
+
+● Write(sql\ops_schema.sql)
+  ⎿  Wrote 126 lines to sql\ops_schema.sql
+       1 -- Operational metadata: every run, every HTTP attempt, every re
+       2 -- Applied idempotently on every connection (see wprdc/db.py).
+       3 -- All timestamps we generate are TIMESTAMPTZ in UTC. CKAN's own
+          timestamps
+         s TIMESTAMP.
+       5 
+       7 
+       8 -- One row per script execution (ingest, probe, or ad-hoc dev se
+         ssion).
+      10     run_id            VARCHAR PRIMARY KEY,
+     … +152 lines (ctrl+o to expand)
+
+● Write(wprdc\config.py)
+  ⎿  Wrote 20 lines to wprdc\config.py
+      1 """Static configuration. Paths are overridable by environment var
+        iable for tests."""
+      2 import os
+      4 
+      5 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+      6 SQL_DIR = PROJECT_ROOT / "sql"
+      7 DATA_DIR = Path(os.environ.get("WPRDC_DATA_DIR", PROJECT_ROOT / "
+      8 RAW_DIR = DATA_DIR / "raw"
+      9 DB_PATH = Path(os.environ.get("WPRDC_DB_PATH", DATA_DIR / "wprdc.
+        duckdb"))
+     … +15 lines (ctrl+o to expand)
+
+● Write(wprdc\__init__.py)
+  ⎿  Wrote 1 line to wprdc\__init__.py
+      1 """WPRDC property sales pipeline."""
+
+● Write(wprdc\db.py)
+  ⎿  Wrote 86 lines to wprdc\db.py
+       1 """DuckDB connection and run bookkeeping."""
+       2 from __future__ import annotations
+       3 
+       4 import platform
+       5 import socket
+       6 import subprocess
+       7 import sys
+       8 import uuid
+       9 from contextlib import contextmanager
+      10 from datetime import datetime, timezone
+     … +91 lines (ctrl+o to expand)
+
+● Write(wprdc\http_client.py)
+  ⎿  Wrote 315 lines to wprdc\http_client.py
+       1 """HTTP client that logs every attempt, including retries, to op
+       2 
+       3 We deliberately don't use ckanapi: it raises a generic error on 
+       4 HTML responses and hides status, headers, body and retries, whic
+         h are
+       6 
+       7 Responses are classified by what actually came back, not by HTTP
+       8 WPRDC sits behind CloudFront -> nginx -> CKAN, and a failing lay
+         er can
+      10 """
+     … +371 lines (ctrl+o to expand)
+
+● Write(wprdc\ckan.py)
+  ⎿  Wrote 42 lines to wprdc\ckan.py
+       1 """Thin CKAN action-API wrapper over LoggedHttp."""
+       2 from __future__ import annotations
+       3 
+       4 from pathlib import Path
+       5 
+       7 from wprdc.http_client import DownloadResult, JsonResponse, Logg
+         edHttp
+       8 
+       9 
+      10 class Ckan:
+     … +43 lines (ctrl+o to expand)
+
+● Before writing the ingest command, I'll confirm what the CSV dump actually
+  starts with.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The header line ends in \r\n but the data rows end in \n, so the file mixes
+  line endings. That's one more data quirk to note. Next I'll write the ingest,
+  probe and report entry points.
+
+● Write(wprdc\ingest.py)
+  ⎿  Wrote 152 lines to wprdc\ingest.py
+       1 """Fetch the property sales resource from CKAN and land it, unch
+       2 
+          skip if unchanged
+       4     python -m wprdc.ingest --strategy datastore # page through d
+       5     python -m wprdc.ingest --force              # fetch even if 
+       6 
+         nly made
+       8 visible once complete (atomic rename). If CKAN's last_modified f
+       9 resource matches the last successful fetch, nothing is downloade
+      10 """
+     … +180 lines (ctrl+o to expand)
+
+● Write(wprdc\probe.py)
+  ⎿  Wrote 61 lines to wprdc\probe.py
+      1 """Lightweight reliability probe: a few cheap CKAN calls, repeate
+        d, all logged.
+      2 
+      3     python -m wprdc.probe                       # one round
+      4     python -m wprdc.probe --rounds 12 --interval 300
+      6 Schedule it (Task Scheduler / cron) to populate ops.v_reliability
+        _by_hour
+      7 without downloading the full dataset each time.
+      8 """
+      9 from __future__ import annotations
+     … +62 lines (ctrl+o to expand)
+
+● Write(wprdc\report.py)
+  ⎿  Wrote 33 lines to wprdc\report.py
+       1 """Print the ops reliability views.  python -m wprdc.report"""
+       2 from wprdc.db import connect
+       3 
+       5     "Recent runs": """
+       6         SELECT command, status, started_at, round(epoch(finished
+         _at - started_at)) AS secs,
+       7                git_commit[:8] AS commit, notes, error_message
+       9     "Requests needing retries or failing": """
+      10         SELECT endpoint, attempts, final_outcome, first_attempt_
+         at, total_elapsed_ms, request_key
+     … +30 lines (ctrl+o to expand)
+
+● Write(wprdc\dev.py)
+  ⎿  Wrote 26 lines to wprdc\dev.py
+       1 """Logged CKAN access for interactive exploration, so dev hits l
+         and in ops.* too.
+       2 
+       4     with dev_session("checking deep offsets") as (ckan, con):
+       5         ckan.datastore_search(MAIN_RESOURCE_ID, limit=5, offset=
+         400_000)
+       6 """
+       8 
+       9 from contextlib import contextmanager
+      10 from typing import Iterator
+     … +19 lines (ctrl+o to expand)
+● Next come the tests. They replay the exact failure sequence you saw (a blank
+  200, then an HTML 200, then valid JSON) against a local fake server.
+
+● Write(tests\test_http_client.py)
+  ⎿  Wrote 120 lines to tests\test_http_client.py
+       1 import http.server
+       2 import json
+       3 import threading
+       4 
+       5 import pytest
+       7 from wprdc.db import connect, run_context
+       8 from wprdc.http_client import FetchError, LoggedHttp, classify_d
+         ownload, classify_json
+       9 
+      10 OK = json.dumps({"success": True, "result": {"x": 1}}).encode()
+     … +134 lines (ctrl+o to expand)
+
+● Bash(printf 'duckdb>=1.1\nrequests>=2.31\npytest>=8\n' > requirements.txt &&
+      printf '\n# Pipeline outputs (raw landings and the DuckDB
+      warehouse)\ndata/\n' >> .gitig…)
+  ⎿              resp = http.get_json("package_show", "k", f"{base}/api/3/a
+     ction/package_show", {"id": "x"})
+             assert resp.payload["result"] == {"x": 1}
+     … +17 lines (ctrl+o to expand)
+  ⎿  Created tests\__init__.py (+0 -0)
+  ⎿  Updated .gitignore (+3 -0)
+      218  
+      219  # Streamlit
+      220  .streamlit/secrets.toml
+      221 +                                                              
+      222 +# Pipeline outputs (raw landings and the DuckDB warehouse)    
+      223 +data/                                                         
+  ⎿  Created requirements.txt (+3 -0)
+      1 +duckdb>=1.1                                                     
+      2 +requests>=2.31                                                  
+      3 +pytest>=8                                                       
+
+● That failure is a test artifact: Python's built-in test server sends its own
+  Server header next to mine. I'll fix the fixture.
+
+● Update(tests\test_http_client.py)
+  ⎿  Removed 1 line
+      49              self.send_response(status)
+      50              self.send_header("Content-Type", ctype)
+      51              self.send_header("Content-Length", str(len(body)))
+      52 -            self.send_header("Server", "fake-nginx")           
+      52              self.end_headers()
+      53              self.wfile.write(body)
+      54  
+
+● Update(tests\test_http_client.py)
+  ⎿  Added 3 lines
+      52              self.end_headers()
+      53              self.wfile.write(body)
+      54  
+      55 +        def version_string(self):                              
+      56 +            return "fake-nginx"                                
+      57 +                                                               
+      58          def log_message(self, *args):
+      59              pass
+      60  
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All 19 tests pass. Now for the real thing: a probe round, then a full dump
+  ingest.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The probe went cleanly and the dump downloaded, but DuckDB couldn't detect the
+  CSV dialect. My guess is the mixed line endings. I'll look at the file before
+  changing anything.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The file itself is fine—506,425 rows matching CKAN's total, all with 26
+  columns—but the header line's \r\n ending mismatch is what's tripping DuckDB's
+  sniffer. I'll test explicit options to work around it.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Found that strict_mode=false bypasses the sniffer, and that DuckDB 2.0 dropped
+  .fetchone() from relations, so I'll switch my counting code to use execute().
+  Before settling on lax mode, I'll check if a stricter option also works.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The CRLF header is the only issue causing strict mode to fail—lax mode
+  successfully reads all 506,425 rows with unique IDs, but could mask truly
+  broken rows. I'll first validate with Python's csv parser to confirm
+  consistent column counts before trusting lax DuckDB parsing.
+
+● Update(wprdc\ingest.py)
+  ⎿  Added 14 lines, removed 5 lines
+      41  
+      42  
+      43  def _count_csv_rows(path: Path) -> int:
+      44 -    # all_varchar: counting must not depend on type sniffing su
+         -cceeding.                                                      
+      45 -    return duckdb.sql(                                         
+      46 -        "SELECT count(*) FROM read_csv(?, header = true, all_va
+         -rchar = true)",                                                
+      47 -        params=[str(path)],                                    
+      48 -    ).fetchone()[0]                                            
+      44 +    """Count data rows, failing if any row's width differs from
+         + the header's.                                                 
+      45  
+      46 +    WPRDC's dump ends the header line with CRLF but data rows w
+         +ith LF, which                                                  
+      47 +    defeats DuckDB's strict CSV sniffer. Loading therefore need
+         +s                                                              
+      48 +    strict_mode=false, so this independent structural check run
+         +s first.                                                       
+      49 +    """                                                        
+      50 +    with open(path, newline="", encoding="utf-8") as fh:       
+      51 +        reader = csv.reader(fh, strict=True)                   
+      52 +        width = len(next(reader))                              
+      53 +        n = 0                                                  
+      54 +        for n, row in enumerate(reader, start=1):              
+      55 +            if len(row) != width:                              
+      56 +                raise ValueError(f"{path}: row {n} has {len(row
+         +)} fields, header has {width}")                                
+      57 +    return n                                                   
+      58  
+      59 +                                                               
+      60  def fetch_dump(ckan: Ckan, resource_id: str, dest_base: Path) -
+          > tuple[Path, str, int, int]:
+      61      result = ckan.dump(resource_id, dest_base.with_suffix(".csv
+          "))
+      62      return result.path, result.sha256, result.bytes, _count_csv
+          _rows(result.path)
+
+● Update(wprdc\ingest.py)
+  ⎿  Added 1 line
+      11  from __future__ import annotations
+      12  
+      13  import argparse
+      14 +import csv                                                     
+      15  import hashlib
+      16  import os
+      17  from datetime import datetime
+
+● Update(wprdc\ingest.py)
+  ⎿  Added 3 lines, removed 2 lines
+      123              path, sha, n_bytes, n_rows = fetch_dump(ckan, reso
+           urce_id, dest_base)
+      124          else:
+      125              path, sha, n_bytes, n_rows = fetch_datastore(ckan,
+            resource_id, dest_base, total, page_size)
+      126 -    except FetchError as exc:                                 
+      127 -        record("failed", ckan_reported_total=total, error_mess
+          -age=str(exc)[:2000])                                          
+      126 +    except Exception as exc:                                  
+      127 +        record("failed", ckan_reported_total=total,           
+      128 +               error_message=f"{type(exc).__name__}: {exc}"[:2
+          +000])                                                         
+      129          raise
+      130  
+      131      record(
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● Update(wprdc\ingest.py)
+  ⎿  Added 1 line, removed 1 line
+      22  from wprdc import config
+      23  from wprdc.ckan import Ckan
+      24  from wprdc.db import connect, run_context, utcnow
+      25 -from wprdc.http_client import FetchError, LoggedHttp           
+      25 +from wprdc.http_client import LoggedHttp                       
+      26  
+      27  
+      28  def _ckan_ts(value: str | None) -> datetime | None:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Ingest succeeded with all 506,425 rows matching CKAN's count, and the re-run
+  skipped correctly as expected. The report only failed due to a Windows console
+  encoding issue with DuckDB's box-drawing characters, so I'll fix it by making
+  the report write UTF-8.
+
+● Update(wprdc\report.py)
+  ⎿  Added 1 line
+      20  
+      21  
+      22  def main() -> None:
+      23 +    sys.stdout.reconfigure(encoding="utf-8")  # Windows console
+         +s default to cp1252                                            
+      24      con = connect()
+      25      try:
+      26          for title, sql in QUERIES.items():
+
+● Update(wprdc\report.py)
+  ⎿  Added 2 lines
+      1  """Print the ops reliability views.  python -m wprdc.report"""
+      2 +import sys                                                      
+      3 +                                                                
+      4  from wprdc.db import connect
+      5  
+      6  QUERIES = {
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The logging has already caught real failures: the CSV dump returned HTTP 502
+  three times before the fourth attempt succeeded. Here's what those 502
+  response bodies contained:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The schema and the logging fetch module are built, and they've already
+  captured real failures. I ran a probe round and a full download of the
+  dataset, and all 19 tests pass.
+
+  What was built
+
+  File: sql/ops_schema.sql
+  Purpose: Three logging tables: ops.fetch_run, ops.fetch_attempt and
+  ops.fetch_resource. Three views: v_reliability_by_hour (Eastern time),
+  v_failure_breakdown and v_request_outcomes.
+  ────────────────────────────────────────
+  File: wprdc/http_client.py
+  Purpose: LoggedHttp, which uses requests directly instead of ckanapi. It
+  classifies each response by its content (13 outcome types, from ok and
+  empty_body to ckan_error and truncated), retries with backoff and honors
+  Retry-After. It writes each attempt as soon as it finishes, and downloads
+  only appear on disk once complete.
+  ────────────────────────────────────────
+  File: wprdc/ckan.py
+  Purpose: A thin CKAN wrapper: package_show, datastore_search and the CSV dump.
+  ────────────────────────────────────────
+  File: wprdc/ingest.py
+  Purpose: python -m wprdc.ingest [--strategy dump|datastore] [--force]. It
+  skips
+  the download when CKAN's last_modified hasn't changed, and lands each fetch
+  in its own run-stamped file.
+  ────────────────────────────────────────
+  File: wprdc/probe.py
+  Purpose: python -m wprdc.probe --rounds N --interval S, a cheap reliability
+  check you can schedule.
+  ────────────────────────────────────────
+  File: wprdc/dev.py
+  Purpose: dev_session(), so your own exploratory calls get logged too.
+  ────────────────────────────────────────
+  File: wprdc/report.py
+  Purpose: python -m wprdc.report prints all the views.
+  ────────────────────────────────────────
+  File: tests/
+  Purpose: A local fake server replays your exact failure sequence (blank, then
+  HTML, then JSON) and checks that every attempt is logged.
+
+  data/ is now in .gitignore.
+
+  Findings worth keeping for the README
+
+  1. The 502 errors come from WPRDC's own nginx server, not from CloudFront. The
+     CSV dump failed three times with 502 Bad Gateway, each in about 80 ms, and
+     worked on the fourth try. The error bodies were nginx's own page. A
+     failure that fast means the CKAN application behind nginx refused the
+     connection; a slow timeout would look different. Without the body snippet,
+     all you'd see is "a 502".
+  2. The dump mixes line endings. The header ends in \r\n and the data rows end
+     in \n. DuckDB's strict CSV parser rejects the file. The fix is a structural
+     check with Python's csv module: every row must have 26 columns, and the
+     row count must equal CKAN's total (506,425 of 506,425). Only after that
+     passes does lax parsing happen. That's your "check written because of this
+     dataset."
+  3. _id can't be the key. It starts at about 17 million, so the datastore gets
+     rebuilt on refresh. The natural key will probably be something like PARID +
+     SALEDATE + DEEDBOOK/DEEDPAGE, which we'll need to verify.
+  4. The data refreshes daily, around 07:00 UTC, judging by last_modified. The
+     package also has one resource per year that repeats subsets of the main
+     one.
+  5. DuckDB 2.0 removed .fetchone() from relations. This matters if you write
+     your own queries: use con.execute(...).
+
+  Next steps
+
+  - Load raw into DuckDB. You need to decide between keeping every snapshot (raw
+    tables tagged by run_id) or keeping only the latest. I lean toward keeping
+    snapshots, because then you can show how a record changed between refreshes.
+  - Build the cleaned layer and test the natural key.
+  - Add data quality checks.
+  - Pick your analytical question.
+
+  Nothing is committed yet. Should I commit this as a first checkpoint?
+
+✻ Sautéed for 8m 36s · done 3:49 PM
+❯ yes, commit it and keep snapshots for raw                                     
+
+● I'll commit first.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Committed as 55bcb7d on main. Next I'll build the raw snapshot layer: each
+  distinct file (keyed by SHA-256) becomes an immutable snapshot with all
+  columns stored as VARCHAR exactly as delivered, loaded in a single
+  transaction, and failing loudly if the header doesn't match expectations.
+
+● Write(sql\raw_schema.sql)
+  ⎿  Wrote 48 lines to sql\raw_schema.sql
+       1 -- Raw layer: every distinct fetch of the source, kept as an imm
+         utable snapshot.
+         Park  ' keeps
+       3 -- its trailing spaces); typing and cleaning happen downstream.
+       4 
+       6 
+       7 -- One row per distinct landed file. snapshot_id is the file's s
+         ha256, so the
+       9 CREATE TABLE IF NOT EXISTS raw.property_sales_snapshot (
+      10     snapshot_id         VARCHAR PRIMARY KEY,
+     … +44 lines (ctrl+o to expand)
+
+● Write(wprdc\load_raw.py)
+  ⎿  Wrote 121 lines to wprdc\load_raw.py
+      1 """Load landed dump files into raw.property_sales as immutable sn
+        apshots.
+      2 
+      4 
+      5 Picks up every fetched-but-unloaded dump in ops.fetch_resource. E
+        ach distinct
+      6 file (by sha256) becomes one snapshot, loaded in a single transac
+      7 re-run is a no-op and a half-loaded snapshot cannot exist.
+      8 """
+      9 from __future__ import annotations
+     … +139 lines (ctrl+o to expand)
+
+● Now tests for the raw load: running it twice, schema drift, and rollback.
+
+● Write(tests\test_load_raw.py)
+  ⎿  Wrote 80 lines to tests\test_load_raw.py
+      1 import pytest
+      2 
+      4 from wprdc.load_raw import SOURCE_COLUMNS, SchemaDriftError, load
+        _pending
+      5 
+        A 15129"', '0', ' ', '',
+      7        'HILL', 'ST', '', '', 'SOUTH PARK', 'PA', '15129', '37', '
+        South Park', '945',
+        , '534', 'H',
+      9        'MULTI-PARCEL SALE', 'DE', 'DEED']
+     … +89 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All 23 tests pass. Next I'll load the real snapshot twice and check that
+  source_row_number follows the file's order.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Both loads worked correctly—506,425 rows on first run, no duplicates on
+  re-run, and row order matches the file. I did spot a portability issue:
+  raw_path uses Windows backslashes, so I'll fix that and normalize the
+  already-stored rows.
+
+● Update(wprdc\ingest.py)
+  ⎿  Added 3 lines, removed 1 line
+      130  
+      131      record(
+      132          "fetched", ckan_reported_total=total,
+      133 -        raw_path=str(path.relative_to(config.PROJECT_ROOT)) if
+          - path.is_relative_to(config.PROJECT_ROOT) else str(path),     
+      133 +        # POSIX separators so the recorded path works on any O
+          +S.                                                            
+      134 +        raw_path=(path.relative_to(config.PROJECT_ROOT) if pat
+          +h.is_relative_to(config.PROJECT_ROOT)                         
+      135 +                  else path).as_posix(),                      
+      136          raw_sha256=sha, raw_bytes=n_bytes, raw_rows=n_rows,
+      137          content_changed=(prev is None or prev[1] != sha),
+      138      )
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The path cleanup didn't take: shell escaping turned the backslash into the
+  wrong string. Using chr(92) avoids escaping altogether.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Both commits are on main and nothing has been pushed. The raw layer now keeps
+  a snapshot of every distinct download, and today's file is loaded.
+
+  Commits
+  - 55bcb7d: fetch layer, logging tables, probe and report commands, tests.
+  - 39983d6: raw snapshot layer.
+
+  How snapshots work (sql/raw_schema.sql, wprdc/load_raw.py)
+  - What a snapshot is: each distinct downloaded file becomes one snapshot,
+    identified by its SHA-256. Run python -m wprdc.load_raw after an ingest.
+  - One row per snapshot goes in raw.property_sales_snapshot. The rows
+    themselves go in raw.property_sales, with every column stored as text
+    exactly as delivered ('South Park  ' keeps its trailing spaces), plus
+    snapshot_id and source_row_number for tracing a row back to its file.
+  - Re-running never duplicates data:
+    - files already loaded are skipped;
+    - the same bytes fetched again are recorded but not reloaded;
+    - each load is a single transaction, so a half-loaded snapshot can't exist.
+  - It fails loudly when:
+    - the file's header changes (a column added, dropped, renamed or reordered);
+    - the loaded row count differs from the count taken when the file was
+      downloaded. In that case it rolls back completely, and a test covers that.
+
+  Verified on real data
+  - Today's snapshot has 506,425 rows.
+  - A second load found nothing to do.
+  - source_row_number matches the file order with no exceptions.
+  - 23 tests pass.
+
+  Path fix: the first stored file path used Windows backslashes, which would
+  break on a reviewer's Mac or Linux machine. The ingest now records paths with
+  forward slashes, and I corrected the rows already in the local database.
+
+  Something to plan for at 100x scale: the dataset refreshes daily, so a new
+  snapshot is about 500k rows per day, roughly 185M rows a year. That fits
+  easily in local DuckDB, but at 100x scale I'd switch to storing only the rows
+  that changed between snapshots (inserts, updates, deletes). That trade-off can
+  go in the README.
+
+  Next steps
+  1. Build the cleaned layer: proper types, trimmed text, and investigating the
+     natural key now that we know _id changes on every refresh.
+  2. Add the data quality checks.
+  3. Add a single python -m wprdc.pipeline command that runs ingest, raw load,
+     transform and checks as one run.
+
+  Do you want to settle the analytical question first? It affects which columns
+  the cleaned table needs to handle carefully: sale codes such as $1 and
+  multi-parcel sales, municipality, and the gap between the sale date and the
+  date the deed was recorded.
+
+✻ Sautéed for 2m 9s · done 3:51 PM
+
+※ recap: You're building the WPRDC property-sales pipeline for the Allegheny County exercise; logged ingest and raw snapshots are committed and working. Next, choose your analytical question so I can build the cleaned table and quality checks. (disable recaps in /config)
+
+❯ How do I query the ops.v_request_outcomes view?                               
+
+● The view is in the DuckDB file at data/wprdc.duckdb. Here are three ways to
+  query it.
+
+  1. The report command (easiest)
+  python -m wprdc.report
+  Its "Requests needing retries or failing" section reads from
+  ops.v_request_outcomes, but it only shows requests that needed more than one
+  attempt or didn't end in ok.
+
+  2. A Python one-liner (any query you like)
+  python -c "import duckdb; con = duckdb.connect('data/wprdc.duckdb', 
+  read_only=True); print(con.execute('SELECT * FROM ops.v_request_outcomes ORDER
+  BY first_attempt_at DESC').fetchall())"
+
+  For DuckDB's formatted table output, use .show() instead. In PowerShell, set
+  the encoding first, or the Windows console (cp1252) chokes on the box-drawing
+  characters:
+  $env:PYTHONIOENCODING = "utf-8"
+  python -c "import duckdb; duckdb.connect('data/wprdc.duckdb', 
+  read_only=True).sql('SELECT * FROM ops.v_request_outcomes').show()"
+
+  3. The DuckDB CLI (best for exploring)
+
+  You have the Python package but not the CLI. You can install it with winget 
+  install DuckDB.cli and then run:
+  duckdb -readonly data/wprdc.duckdb
+  SELECT * FROM ops.v_request_outcomes ORDER BY first_attempt_at DESC;
+
+  -- requests that needed retries
+  SELECT endpoint, attempts, final_outcome, total_backoff_s, request_key
+  FROM ops.v_request_outcomes WHERE attempts > 1;
+
+  -- retry rate per endpoint
+  SELECT endpoint, count(*) AS requests,
+         count(*) FILTER (WHERE attempts > 1) AS needed_retry,
+         count(*) FILTER (WHERE final_outcome <> 'ok') AS failed
+  FROM ops.v_request_outcomes GROUP BY endpoint;
+
+  Things to know:
+  - Open the file read-only (read_only=True or -readonly). DuckDB allows only
+    one process to write to the file, and a read-write session would make the
+    pipeline fail with a lock error while it's open. Even read-only, close it
+    before running the pipeline: the lock is for the whole file, so an open
+    reader can still block a writer.
+  - Each row is one logical request, grouped by run_id and request_key. attempts
+    counts its retries, and final_outcome is the outcome of its last attempt.
+  - For per-attempt detail (HTTP status, body snippet, headers), join back to
+    ops.fetch_attempt on run_id and request_key:
+  SELECT attempt_no, outcome, http_status, round(elapsed_ms) AS ms, body_snippet
+  FROM ops.fetch_attempt
+  WHERE request_key LIKE 'datastore_dump:%'
+  ORDER BY attempt_id;
+
+✻ Churned for 13s · done 4:11 PM
+
+❯ It's not finding duckdb in my path, after the winget install.                 
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● The CLI is installed and runs, but it's version 1.5.6, while your Python
+  package is 2.0.0. The database file was written by 2.0, so I'll check whether
+  the older CLI can open it.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Found two issues: winget's duckdb.exe isn't on PATH, and even by full path,
+  CLI 1.5.6 can't read files written by Python duckdb 2.0.0 due to a storage
+  format mismatch (69 vs 68). I'll check if the Python package bundles its own
+  CLI.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The Python package doesn't include a CLI. So there are two fixes to make.
+
+  1. PATH (easy). Add the CLI's folder to your user PATH, then open a new
+  terminal:
+  [Environment]::SetEnvironmentVariable('Path',
+  [Environment]::GetEnvironmentVariable('Path','User') + ";$env:LOCALAPPDATA\Mic
+  rosoft\WinGet\Packages\DuckDB.cli_Microsoft.Winget.Source_8wekyb3d8bbwe",
+  'User')
+  This only helps once the version mismatch is fixed.
+
+  2. The version mismatch (needs your decision). The options:
+
+  - A. Pin Python duckdb to 1.5.6 to match the CLI (my recommendation).
+    - We should pin an exact version in requirements.txt anyway. Right now it
+      says duckdb>=1.1, so a reviewer who runs pip install could get any
+      version, and we've already hit one breaking 2.0 API change (.fetchone()
+      removed from relations).
+    - 1.5.x is the line most people will have installed.
+    - I'd export the current database with 2.0 and import it with 1.5.6, so your
+      ops history is kept, including today's real 502 failures.
+    - Then I'd rerun the tests under 1.5.6.
+  - B. Stay on 2.0 and write the database file in the older 1.5 storage format,
+    so the 1.5.6 CLI can read it.
+    - It works, but it adds a compatibility setting that you'd have to explain
+      in the walkthrough.
+    - The Python and CLI versions would still differ.
+  - C. Skip the CLI and query through Python only (python -m wprdc.report, or
+    the one-liners from before).
+
+  Should I go ahead with A?
+
+✻ Brewed for 47s · done 4:16 PM
+
+❯ yes, go with A                                                                
+
+● I'll export the database with 2.0 first, keeping the original file as a
+  backup.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The export holds 4 runs, 13 attempts, 2 resource fetches and 506,425 raw rows,
+  and the sequence continues at 14. Next I'll install DuckDB 1.5.6 for Python.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Everything carried over and the counts match. Next: run the tests under 1.5.6,
+  run the pipeline commands (the probe writes new attempt rows), and confirm
+  the CLI can read the file.
+  Ran 1 shell command (ctrl+o to expand)
+
+● Everything works on 1.5.6: tests, probe, ingest skip, raw load, and the CLI
+  reading the database. Next I'll pin exact versions and commit.
+
+● Bash(printf '# Exact pins: the DuckDB Python package must match the DuckDB CLI
+      version\n# used to inspect data/wprdc.duckdb (newer versions write a
+      storage format\n#…)
+  ⎿  warning: in the working copy of 'requirements.txt', LF will be replace
+     d by CRLF the next time Git touches it
+     9d79aaa Pin dependencies; use DuckDB 1.5.6 to match the CLI
+  ⎿  Updated requirements.txt (+6 -3)
+      1 -duckdb>=1.1                                                     
+      2 -requests>=2.31                                                  
+      3 -pytest>=8                                                       
+      1 +# Exact pins: the DuckDB Python package must match the DuckDB CL
+        +I version                                                       
+      2 +# used to inspect data/wprdc.duckdb (newer versions write a stor
+        +age format                                                      
+      3 +# older CLIs cannot open).                                      
+      4 +duckdb==1.5.6                                                   
+      5 +requests==2.32.3                                                
+      6 +pytest==9.0.2                                                   
+
+● Option A is done: Python and the CLI now both run DuckDB 1.5.6, and the CLI
+  opens the database.
+
+  What I did
+  1. Exported the database with 2.0, then imported it under 1.5.6. The counts
+     match: 4 runs, 13 attempts, 2 resource rows, 1 snapshot and 506,425 raw
+     rows. The three views came across, and the attempt ID sequence picks up
+     where it left off, so today's 502 failures are kept.
+  2. Swapped the Python package with pip install duckdb==1.5.6. Note this
+     changes your global Python 3.13 install, not a virtual environment.
+  3. Verified on 1.5.6: all 23 tests pass, a probe round succeeded, the ingest
+     correctly skipped the unchanged data, the raw load had nothing to do, and
+     the CLI queried ops.v_request_outcomes.
+  4. Pinned exact versions in requirements.txt (duckdb==1.5.6, requests==2.32.3,
+     pytest==9.0.2), with a comment explaining why. Committed as 9d79aaa.
+
+  Your remaining step is the PATH fix. Run this once, then open a new terminal:
+  [Environment]::SetEnvironmentVariable('Path',
+  [Environment]::GetEnvironmentVariable('Path','User') + ";$env:LOCALAPPDATA\Mic
+  rosoft\WinGet\Packages\DuckDB.cli_Microsoft.Winget.Source_8wekyb3d8bbwe",
+  'User')
+  After that, duckdb -readonly data/wprdc.duckdb should work from the project
+  folder.
+
+  Cleanup: I left the 2.0 database as data/wprdc.v2-backup.duckdb and the export
+  in data/migrate_v2_export/. Both are git-ignored, and I'll delete them once
+  you've looked around and are happy.
+
+  One habit to keep: close the CLI (or keep it -readonly) before running the
+  pipeline. DuckDB lets only one process write to the file at a time.
+
+✻ Cooked for 1m 31s · done 4:18 PM
+
+❯ did you re-download the data under 1.5.6?  I don't see that.                  
+
+● No, I didn't. Nothing was re-downloaded under 1.5.6. Here's what happened:
+
+  - The raw data was migrated, not re-fetched. The 506,425 rows in
+    raw.property_sales came across through the export/import, from Parquet files
+    written by 2.0. The CSV on disk is still the one downloaded at 19:48 UTC,
+    and it was never touched; a CSV file doesn't depend on the DuckDB version.
+  - The ingest I ran under 1.5.6 skipped the download on purpose. CKAN's
+    last_modified for the resource (07:08:43 UTC today) matched the last
+    successful fetch, so it logged skipped_unchanged and fetched nothing. The
+    only new network calls under 1.5.6 were the probe's three small requests. So
+    my "verified on 1.5.6" covered the tests, probe, skip logic, raw load and
+    CLI, but not a full fetch-and-load under the new version. I should have said
+    that explicitly.
+
+  There are two ways to close that gap:
+  1. A from-scratch run in a throwaway location (my recommendation). I'd point
+     WPRDC_DATA_DIR at a scratch folder and run ingest plus load from an empty
+     database under 1.5.6. That's exactly what a reviewer will do after cloning,
+     so it tests the most important path, and it leaves your real database and
+     its history untouched.
+  2. python -m wprdc.ingest --force against your real database. It downloads
+     again and lands a second file. If the bytes match, load_raw records it as
+     already_loaded and adds no rows, which also tests the duplicate handling on
+     real data. If they differ, for example because row order isn't stable
+     between dumps, you get a second snapshot. That would itself be a useful
+     finding.
+
+  I can do both, scratch first. Should I go ahead?
+
+✻ Worked for 11s · done 4:22 PM
+
+❯ No. What do you mean specifically by "load_raw records it as already_loaded   
+  and adds no rows" -- adds no rows to what?  I am not following the            
+  architecture fully yet.                                                       
+
+● "Adds no rows" means no new rows in the two raw tables,
+  raw.property_sales_snapshot and raw.property_sales. Here's the whole
+  architecture so that sentence makes sense.
+
+  Where data lives
+
+  There are two storage places: files on disk, and tables in one DuckDB file.
+
+  WPRDC CKAN API
+       │  (1) python -m wprdc.ingest
+       ▼
+  data/raw/.../dump/<timestamp>_<run>.csv      ← FILES: exact bytes downloaded, 
+  one file per fetch
+       │  (2) python -m wprdc.load_raw
+       ▼
+  data/wprdc.duckdb
+   ├─ ops.*   ← logging: what happened when we talked to the API
+   │    fetch_run        one row per command execution
+   │    fetch_attempt    one row per HTTP request (incl. retries)
+   │    fetch_resource   one row per resource per ingest run: what CKAN said + 
+  which file we wrote
+   │
+   ├─ raw.*   ← the data itself, as text, verbatim
+   │    property_sales_snapshot   one row per DISTINCT file content (keyed by 
+  the file's SHA-256)
+   │    property_sales            the 506k data rows, each tagged with its 
+  snapshot_id
+   │
+   └─ (later) cleaned/modeled tables built from raw.property_sales
+
+  Step 1, ingest, writes files and ops rows. Step 2, load_raw, reads the files
+  and writes raw rows.
+
+  What each step does
+
+  ingest
+  1. Asks CKAN about the resource (package_show).
+  2. Skips the download if last_modified hasn't changed. --force overrides that.
+  3. Downloads the CSV to a new, run-stamped file and computes its SHA-256
+     fingerprint.
+  4. Writes a row to ops.fetch_resource saying "run X fetched this file, with
+     this fingerprint." The raw_table column stays empty, which marks the file
+     as not yet loaded.
+
+  load_raw
+  1. Finds every fetch_resource row whose file hasn't been loaded yet.
+  2. For each one, checks whether a snapshot with that fingerprint already
+     exists in raw.property_sales_snapshot:
+     - New fingerprint: in one transaction, it inserts one row into
+       property_sales_snapshot, inserts the file's rows into property_sales, and
+       fills in raw_table on the fetch_resource row.
+     - Fingerprint already present (byte-for-byte the same as an earlier
+       download): it inserts nothing into either raw table. It only fills in
+       raw_table on the new fetch_resource row, so that row stops showing up as
+       pending. That's the already_loaded case.
+
+  A forced re-download with identical bytes
+
+  ┌─────────────────────────────┬────────────────────────────────────────────┐
+  │            Place            │                What changes                │
+  ├─────────────────────────────┼────────────────────────────────────────────┤
+  │ Disk                        │ A second 109 MB CSV file with a new        │
+  │                             │ timestamp in its name                      │
+  ├─────────────────────────────┼────────────────────────────────────────────┤
+  │ ops.fetch_run               │ +1 row (the ingest run)                    │
+  ├─────────────────────────────┼────────────────────────────────────────────┤
+  │ ops.fetch_attempt           │ +3 or more rows (package_show, row count,  │
+  │                             │ dump, plus any retries)                    │
+  ├─────────────────────────────┼────────────────────────────────────────────┤
+  │ ops.fetch_resource          │ +1 row with content_changed = false        │
+  ├─────────────────────────────┼────────────────────────────────────────────┤
+  │ raw.property_sales_snapshot │ no change                                  │
+  ├─────────────────────────────┼────────────────────────────────────────────┤
+  │ raw.property_sales          │ no change: still 506,425 rows              │
+  └─────────────────────────────┴────────────────────────────────────────────┘
+
+  The ops tables record that you went back to the source. The raw tables only
+  change when the content is different.
+
+  Two gaps this exposes
+
+  1. Identical downloads leave a duplicate file on disk. The database avoids the
+     duplicate, but the second 109 MB CSV stays. The ingest could delete the
+     new file when its fingerprint matches the previous one and point
+     fetch_resource at the existing file instead.
+  2. load_raw doesn't create its own fetch_run row. Ingest runs are logged, but
+     loads aren't. That gets fixed when we add the single python -m 
+     wprdc.pipeline command, which will log one run covering ingest, load,
+     transform and checks.
+
+  I'd fix both. Is there any part of the flow you'd like me to explain further
+  first?
+
+✻ Crunched for 18s · done 4:24 PM
+
+❯ Tell me more about why #1 is a problem.  Is this because one could ingest     
+  multiple times before load_raw is called, which would just test every         
+  downloaded file, and if it no change to the fingerprint, it just marks them   
+  as having been looked at (by virtue of filling in the raw_table column on the 
+  fetch_resource row) and does nothing.  What is the issue?                     
+
+● Yes, you've described load_raw correctly, and nothing in the database goes
+  wrong. Gap #1 isn't a correctness problem. It's about disk space, and I made
+  it sound bigger than it is.
+
+  The actual issue: every download is kept as its own file, even when it's
+  byte-for-byte identical to an earlier one. The extra copy adds no information:
+  - ops.fetch_resource already records that "run X fetched content with
+    fingerprint F at time T."
+  - The first file with fingerprint F already holds those exact bytes.
+
+  So the second file is roughly 109 MB repeating what's already recorded.
+  Deleting it and pointing the new fetch_resource row at the existing file would
+  lose nothing.
+
+  When would it happen?
+  - --force: rare, and done on purpose.
+  - CKAN changing last_modified without the content changing: this is the case
+    that could happen more often. WPRDC rebuilds this resource every day (that's
+    why _id starts near 17 million). A rebuild probably updates last_modified
+    whether or not any sales were added. On a day with no new records, the skip
+    check doesn't catch it, a full download happens, and an identical file is
+    stored.
+
+  Why it's minor:
+  - The data changes on most days anyway, because new sales are recorded. On
+    those days the new file is genuinely new and has to be kept, so removing
+    identical duplicates saves little.
+  - The bigger storage cost is that each changed snapshot is stored in full,
+    about 109 MB on disk and 506k rows in DuckDB per day, even if only a few
+    hundred rows changed.
+  - Removing identical files also assumes the dump writes rows in the same order
+    every time. If the order varies between rebuilds, identical data produces
+    different bytes and a different fingerprint, and this check never triggers.
+
+  So the more useful questions are:
+  1. Is the dump's row order stable between rebuilds? We can only find out by
+     comparing two days' files, which tomorrow's ingest will let us do.
+  2. At daily refresh or 100x scale, should we store only the rows that changed
+     instead of full snapshots? That belongs in the README's scaling section
+     rather than in code now.
+
+  I'd drop #1 as a code change, keep #2 (logging a run for load_raw through the
+  pipeline command), and add both questions to the README notes. Does that work
+  for you?
+
+✻ Cooked for 16s · done 4:35 PM
+
+※ recap: You're building the WPRDC property sales pipeline for the Allegheny County exercise; fetch logging and raw snapshots are done and committed. Next, confirm we drop the duplicate-file fix, then choose your analytical question for the cleaned layer. (disable recaps in /config)
+
+❯ OK, I see. I did not understand the "last_modified", I thought that was a     
+  column in the data, and we were going to do an incremental load, so not       
+  pulling down 109+ MB every day. I still like saving the csv for every         
+  successful attempt to download the data, whether forced or not.  Is it        
+  possible to create an incremental load by hashing the column values,          
+  excepting the "_id" column, which we believe is not reliable?                 
+
+● Yes, that's possible. First, a clarification: last_modified isn't a column in
+  the data. It's metadata CKAN keeps about the resource as a whole ("this file
+  was last rebuilt at 07:08 UTC"). The data's own date columns are SALEDATE and
+  RECORDDATE.
+
+  Before answering the hashing question, I'll check something in the data that
+  decides whether row hashing works cleanly.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● I found a contradiction: 506,425 rows but only 313,721 distinct hashes, while
+  grouping by PARID, sale date, record date, price, deed book/page, and sale
+  code shows no duplicates. This suggests my hash expression is likely flawed,
+  so I'll verify it before trusting either result.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Found the bug: my query used COLUMNS(...) without unpacking, so it counted
+  distinct PARIDs instead of distinct hashes, and concat_ws was masking NULLs as
+  empty strings. I'll fix the syntax with *COLUMNS(...) and test the corrected
+  version.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● DuckDB doesn't allow method-chaining on COLUMNS. Writing the 25 columns out
+  explicitly is clearer anyway, and easier to explain in a live walkthrough.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Yes, row hashing works, and the data suits it well. All 506,425 rows hash to
+  distinct values when every column except _id is included, so each hash
+  identifies exactly one row. (My first attempt said otherwise, but that was the
+  bug in my query, not the data.)
+
+  There's an important distinction, though.
+
+  Hashing makes the load incremental, not the download
+
+  To know what changed, you have to compare against every row. That includes
+  rows that disappeared, and you only see a deletion by noticing a row is
+  missing from the full file. So you'd still download the full 109 MB each day.
+  What gets smaller is what you store and process in DuckDB.
+
+  Reducing the download would need filtering on the server, for example
+  datastore_search_sql ... WHERE "RECORDDATE" >= <last cutoff>. I'd reject that
+  for this exercise:
+  - It misses corrections and deletions to older records.
+  - It relies on the SQL endpoint, which is the flakiest part of the API.
+  - The full download only takes about 12 seconds.
+
+  It belongs in the README's 100x-scale section, along with a weekly full
+  reconciliation to catch what the filter misses.
+
+  Keeping every downloaded CSV, as you want, also fits: the files are the "raw
+  data, unchanged" the requirements ask for, so the database table no longer has
+  to be a full copy of each snapshot.
+
+  How the incremental load would work
+
+  row_hash: an MD5 of the 25 non-_id columns, joined with a separator that can't
+  appear in the data, and with NULL encoded so it differs from an empty string.
+  MD5 is fine here because we're detecting changes, not doing security.
+
+  raw.property_sales becomes a history table, one row per distinct row version:
+
+  ┌──────────────────────┬──────────────────────────────────────────────────┐
+  │        column        │                     meaning                      │
+  ├──────────────────────┼──────────────────────────────────────────────────┤
+  │ row_hash             │ primary key                                      │
+  ├──────────────────────┼──────────────────────────────────────────────────┤
+  │ the 25 source        │ verbatim text, as now                            │
+  │ columns              │                                                  │
+  ├──────────────────────┼──────────────────────────────────────────────────┤
+  │ _id                  │ kept for reference only                          │
+  ├──────────────────────┼──────────────────────────────────────────────────┤
+  │ first_seen_snapshot  │ the snapshot where this version first appeared   │
+  ├──────────────────────┼──────────────────────────────────────────────────┤
+  │ removed_in_snapshot  │ the snapshot where it disappeared (NULL while    │
+  │                      │ it's still current)                              │
+  └──────────────────────┴──────────────────────────────────────────────────┘
+
+  For each new snapshot:
+  1. Hash the file's rows into a temporary table.
+  2. Insert hashes we haven't seen before, which are new rows or new versions of
+     changed rows.
+  3. Close any current hashes that are missing from the file, which are
+     deletions or old versions of changed rows.
+  4. Leave unchanged rows alone.
+
+  Results:
+  - The first load stores 506k rows. After that, each day only adds what
+    changed.
+  - Any past snapshot can be rebuilt as the rows where first_seen <= S and
+    (removed_in is NULL or later than S).
+  - Re-running a snapshot finds nothing new and nothing to close, so it changes
+    nothing.
+
+  One limitation: when a record is edited, for example a price correction, it
+  shows up as one hash closed and another inserted. To link the two as an update
+  to the same sale, you need a business key, which is the natural-key work
+  still ahead. One candidate is PARID + SALEDATE + RECORDDATE + PRICE + DEEDBOOK
+  + DEEDPAGE + SALECODE. It's unique today, but it includes PRICE, so it can't
+  recognize a price correction. PARID + DEEDBOOK + DEEDPAGE is worth testing.
+
+  New quality check: no duplicate row_hash within a single snapshot. There are
+  none today, but if two identical rows ever appear, the history table can't
+  tell them apart, so the load should fail loudly.
+
+  Two more data findings from this pass
+
+  - RECORDDATE has a minimum of 0212-08-01, presumably a typo for 2012.
+  - RECORDDATE has a maximum of 2026-10-29, three days after today.
+
+  Both are good candidates for quality checks written specifically because of
+  this dataset.
+
+  Should I go ahead and replace the full-snapshot table with this history table?
+  It would also keep raw.property_sales_snapshot as the ordered list of
+  snapshots and update the tests.
+
+✻ Sautéed for 1m 19s · done 4:42 PM
+
+❯ doh! of course "Hashing makes the load incremental, not the download" --      
+  thanks for that.  I do want to keep every downloaded CSV. I like the idea of  
+  the history table, but I am leery of the complexity in reproducing data for   
+  any particular day.  What was going to happen previously?  We were going to   
+  just update property_sales to match the downloaded data?                      
+
+● No. Nothing gets updated or overwritten in the current design.
+  raw.property_sales only ever has rows added to it:
+
+  - Each distinct downloaded file adds a complete copy of its ~506k rows, tagged
+    with that file's snapshot_id.
+  - Earlier snapshots are never touched.
+  - Reproducing a given day is one filter: WHERE snapshot_id = '<that day's 
+    snapshot>'.
+
+  That's the simple option you're after. Its only cost is storage: one full copy
+  per day the data changes.
+
+  How much storage that really is: for this exercise, nothing. Over a year of
+  daily changes it would be about 185M rows. DuckDB stores data by column and
+  compresses it, and these columns are highly repetitive (city names, sale
+  codes, the same addresses every day), so that's likely a few GB. It's fine on
+  a laptop, but it's the first thing to change at 100x scale.
+
+  If you want the benefits of hashing while keeping full snapshots:
+  1. Add a row_hash column to raw.property_sales, computed at load time. Each
+     snapshot stays complete and readable on its own, and comparing two days
+     becomes a simple set comparison: hashes in day B but not day A are new or
+     changed rows, and the reverse are removed or changed rows. You'd get change
+     tracking for analysis and quality checks without the history table's
+     bookkeeping. For example, a check could fail if a daily refresh drops more
+     than 1% of rows.
+  2. Use the CSV files as the permanent archive and the database as working 
+     storage. Every downloaded CSV is kept forever. If the database grows too
+     big, you can drop older snapshots from it, and any day can be rebuilt by
+     reloading its CSV. That's the answer to "what about daily refreshes at
+     scale" that doesn't require the history table now. The history table can go
+     in the README as the next step, with the date-reconstruction cost you
+     identified as the reason it was rejected.
+  3. Add a raw.property_sales_latest view that picks the newest snapshot. The
+     cleaned layer builds from that, so it never has to think about snapshots.
+
+  My recommendation is to keep the full snapshots as they are and add those
+  three items. The design stays easy to explain in the walkthrough, the
+  incremental idea still appears as change detection, and the README gets a
+  clear "alternatives we rejected" story:
+  - rejected: the history table, because reconstructing a given day is harder;
+  - rejected: server-side filtered downloads, because they miss corrections and
+    deletions and depend on the flakiest endpoint.
+
+  Should I make those changes?
+
+✻ Cooked for 17s · done 4:50 PM
+
+❯ yes, make those three changes                                                 
+
+● Before writing code, one requirement for the "latest" view. "Latest" has to
+  mean the snapshot from the most recent download, not the one most recently
+  loaded. If the data goes A, then B, then back to A, the third download is
+  recognized as "already loaded". A naive "latest loaded" view would still show
+  B, so the view needs to work from download history.
+
+● Write(sql\raw_schema.sql)
+  ⎿  Added 92 lines, removed 5 lines
+       1 --- Raw layer: every distinct fetch of the source, kept as an im
+         -mutable snapshot.                                              
+       2 --- Source columns are VARCHAR exactly as delivered (e.g. 'South
+         - Park  ' keeps                                                 
+       3 --- its trailing spaces); typing and cleaning happen downstream.
+       1 +-- Raw layer: every distinct fetch of the source, kept as a com
+         +plete, immutable                                               
+       2 +-- snapshot. Source columns are VARCHAR exactly as delivered (e
+         +.g. 'South Park  '                                             
+       3 +-- keeps its trailing spaces); typing and cleaning happen downs
+         +tream.                                                         
+       4 +--                                                             
+       5 +-- The landed CSV files are the permanent archive. These tables
+         + are working                                                   
+       6 +-- storage: old snapshots can be pruned here and rebuilt from t
+         +heir CSVs                                                      
+       7 +-- (python -m wprdc.load_raw --prune-keep N / --rebuild).      
+       8  
+       9  CREATE SCHEMA IF NOT EXISTS raw;
+      10  
+     ...
+      12  -- same bytes fetched twice are never loaded twice.
+      13  CREATE TABLE IF NOT EXISTS raw.property_sales_snapshot (
+      14      snapshot_id         VARCHAR PRIMARY KEY,
+      11 -    run_id              VARCHAR NOT NULL,     -- ops.fetch_run 
+         -that fetched it                                                
+      15 +    run_id              VARCHAR NOT NULL,     -- ops.fetch_run 
+         +that first fetched it                                          
+      16      resource_id         VARCHAR NOT NULL,
+      17      source_path         VARCHAR NOT NULL,
+      18      ckan_last_modified  TIMESTAMP,            -- naive UTC, fro
+          m CKAN
+      19      row_count           BIGINT NOT NULL,
+      16 -    loaded_at           TIMESTAMPTZ NOT NULL                   
+      20 +    loaded_at           TIMESTAMPTZ NOT NULL,                  
+      21 +    pruned_at           TIMESTAMPTZ           -- rows removed f
+         +rom this DB; CSV still on disk                                 
+      22  );
+      23  
+      24  CREATE TABLE IF NOT EXISTS raw.property_sales (
+      25      snapshot_id              VARCHAR NOT NULL,
+      26      source_row_number        BIGINT NOT NULL,  -- 1-based data 
+          row within the file
+      27 +    row_hash                 VARCHAR NOT NULL, -- md5 of every 
+         +source column except _id                                       
+      28      "_id"                    VARCHAR,
+      29      PARID                    VARCHAR,
+      30      FULL_ADDRESS             VARCHAR,
+     ...
+       52      INSTRTYP                 VARCHAR,
+       53      INSTRTYPDESC             VARCHAR
+       54  );
+       55 +                                                              
+       56 +-- Snapshots in fetch order. Recency comes from the fetch log,
+          + not load time:                                               
+       57 +-- if the source goes A -> B -> A, the third fetch is "already
+          + loaded" yet A                                                
+       58 +-- is the current state again.                                
+       59 +CREATE OR REPLACE VIEW raw.v_snapshots AS                     
+       60 +WITH fetches AS (                                             
+       61 +    SELECT raw_sha256        AS snapshot_id,                  
+       62 +           min(finished_at)  AS first_fetched_at,             
+       63 +           max(finished_at)  AS last_fetched_at,              
+       64 +           count(*)          AS times_fetched                 
+       65 +    FROM ops.fetch_resource                                   
+       66 +    WHERE strategy = 'dump' AND status = 'fetched'            
+       67 +    GROUP BY 1                                                
+       68 +)                                                             
+       69 +SELECT                                                        
+       70 +    row_number() OVER (ORDER BY f.first_fetched_at) AS snapsho
+          +t_seq,                                                        
+       71 +    s.snapshot_id,                                            
+       72 +    s.ckan_last_modified,                                     
+       73 +    s.row_count,                                              
+       74 +    f.first_fetched_at,                                       
+       75 +    f.last_fetched_at,                                        
+       76 +    f.times_fetched,                                          
+       77 +    s.pruned_at,                                              
+       78 +    s.source_path                                             
+       79 +FROM raw.property_sales_snapshot s                            
+       80 +JOIN fetches f USING (snapshot_id);                           
+       81 +                                                              
+       82 +-- The current state of the source: the snapshot from the most
+          + recent fetch.                                                
+       83 +CREATE OR REPLACE VIEW raw.property_sales_latest AS           
+       84 +SELECT *                                                      
+       85 +FROM raw.property_sales                                       
+       86 +WHERE snapshot_id = (                                         
+       87 +    SELECT snapshot_id FROM raw.v_snapshots ORDER BY last_fetc
+          +hed_at DESC LIMIT 1                                           
+       88 +);                                                            
+       89 +                                                              
+       90 +-- Row-level differences between two snapshots, by content has
+          +h. A changed                                                  
+       91 +-- record appears once as 'removed' (old version) and once as 
+          +'added'.                                                      
+       92 +--   SELECT * FROM raw.snapshot_diff('<old snapshot_id>', '<ne
+          +w snapshot_id>');                                             
+       93 +CREATE OR REPLACE MACRO raw.snapshot_diff(old_snapshot, new_sn
+          +apshot) AS TABLE                                              
+       94 +SELECT 'added' AS change, n.*                                 
+       95 +FROM (SELECT * FROM raw.property_sales WHERE snapshot_id = new
+          +_snapshot) n                                                  
+       96 +ANTI JOIN (SELECT row_hash FROM raw.property_sales WHERE snaps
+          +hot_id = old_snapshot) o                                      
+       97 +    USING (row_hash)                                          
+       98 +UNION ALL                                                     
+       99 +SELECT 'removed' AS change, o.*                               
+      100 +FROM (SELECT * FROM raw.property_sales WHERE snapshot_id = old
+          +_snapshot) o                                                  
+      101 +ANTI JOIN (SELECT row_hash FROM raw.property_sales WHERE snaps
+          +hot_id = new_snapshot) n                                      
+      102 +    USING (row_hash);                                         
+      103 +                                                              
+      104 +-- How much each snapshot differs from the one before it (NULL
+          + if either is pruned).                                        
+      105 +CREATE OR REPLACE VIEW raw.v_snapshot_changes AS              
+      106 +WITH seq AS (                                                 
+      107 +    SELECT snapshot_seq, snapshot_id, row_count, pruned_at,   
+      108 +           lag(snapshot_id) OVER (ORDER BY snapshot_seq) AS pr
+          +ev_snapshot_id,                                               
+      109 +           lag(row_count)   OVER (ORDER BY snapshot_seq) AS pr
+          +ev_row_count,                                                 
+      110 +           lag(pruned_at)   OVER (ORDER BY snapshot_seq) AS pr
+          +ev_pruned_at,                                                 
+      111 +           first_fetched_at                                   
+      112 +    FROM raw.v_snapshots                                      
+      113 +),                                                            
+      114 +common AS (                                                   
+      115 +    SELECT seq.snapshot_id, count(*) AS n_common              
+      116 +    FROM seq                                                  
+      117 +    JOIN raw.property_sales cur ON cur.snapshot_id = seq.snaps
+          +hot_id                                                        
+      118 +    JOIN raw.property_sales prv ON prv.snapshot_id = seq.prev_
+          +snapshot_id                                                   
+      119 +                               AND prv.row_hash = cur.row_hash
+      120 +    GROUP BY 1                                                
+      121 +)                                                             
+      122 +SELECT                                                        
+      123 +    seq.snapshot_seq,                                         
+      124 +    seq.snapshot_id,                                          
+      125 +    seq.first_fetched_at,                                     
+      126 +    seq.prev_snapshot_id,                                     
+      127 +    seq.row_count,                                            
+      128 +    seq.row_count - seq.prev_row_count AS net_change,         
+      129 +    CASE WHEN seq.pruned_at IS NULL AND seq.prev_pruned_at IS 
+          +NULL                                                          
+      130 +         THEN seq.row_count - coalesce(c.n_common, 0) END AS r
+          +ows_added,                                                    
+      131 +    CASE WHEN seq.pruned_at IS NULL AND seq.prev_pruned_at IS 
+          +NULL                                                          
+      132 +         THEN seq.prev_row_count - coalesce(c.n_common, 0) END
+          + AS rows_removed                                              
+      133 +FROM seq                                                      
+      134 +LEFT JOIN common c USING (snapshot_id)                        
+      135 +WHERE seq.prev_snapshot_id IS NOT NULL;                       
+
+● Now I'll split schema application out of connect() so the rebuild can reuse
+  it.
+
+● Update(wprdc\db.py)
+  ⎿  Added 5 lines, removed 1 line
+      31      path.parent.mkdir(parents=True, exist_ok=True)
+      32      con = duckdb.connect(str(path))
+      33      con.execute("SET TimeZone = 'UTC'")
+      34 +    apply_schema(con)                                          
+      35 +    return con                                                 
+      36 +                                                               
+      37 +                                                               
+      38 +def apply_schema(con: duckdb.DuckDBPyConnection) -> None:      
+      39      for schema_file in sorted(config.SQL_DIR.glob("*_schema.sql
+          ")):
+      40          con.execute(schema_file.read_text(encoding="utf-8"))
+      36 -    return con                                                 
+      41  
+      42  
+      43  def _git_state() -> tuple[str | None, bool | None]:
+
+● Write(wprdc\load_raw.py)
+  ⎿  Added 82 lines, removed 10 lines
+       1  """Load landed dump files into raw.property_sales as immutable 
+          snapshots.
+       2  
+       3 -    python -m wprdc.load_raw                                   
+       3 +    python -m wprdc.load_raw                  # load any fetche
+         +d-but-unloaded dumps                                           
+       4 +    python -m wprdc.load_raw --prune-keep 30  # drop rows of al
+         +l but the 30 most recent snapshots                             
+       5 +    python -m wprdc.load_raw --rebuild        # drop the raw la
+         +yer and reload it from the CSV archive                         
+       6  
+       5 -Picks up every fetched-but-unloaded dump in ops.fetch_resource.
+         - Each distinct                                                 
+       6 -file (by sha256) becomes one snapshot, loaded in a single trans
+         -action, so a                                                   
+       7 -re-run is a no-op and a half-loaded snapshot cannot exist.     
+       7 +Each distinct file (by sha256) becomes one snapshot, loaded in 
+         +a single                                                       
+       8 +transaction, so a re-run is a no-op and a half-loaded snapshot 
+         +cannot exist.                                                  
+       9 +The CSVs under data/raw are never modified or deleted by this m
+         +odule.                                                         
+      10  """
+      11  from __future__ import annotations
+      12  
+      13 +import argparse                                                
+      14  import csv
+      15  from pathlib import Path
+      16  
+      17  import duckdb
+      18  
+      19  from wprdc import config
+      17 -from wprdc.db import connect, utcnow                           
+      20 +from wprdc.db import apply_schema, connect, utcnow             
+      21  
+      22  RAW_TABLE = "raw.property_sales"
+      23  SOURCE_COLUMNS = [
+     ...
+      28      "RECORDDATE", "SALEDATE", "PRICE", "DEEDBOOK", "DEEDPAGE", 
+          "SALECODE",
+      29      "SALEDESC", "INSTRTYP", "INSTRTYPDESC",
+      30  ]
+      31 +# _id is excluded: WPRDC reassigns it every time the datastore 
+         +is rebuilt.                                                    
+      32 +# NULL is encoded as chr(0) so it hashes differently from an em
+         +pty string, and                                                
+      33 +# values are joined with chr(31) (unit separator), which never 
+         +occurs in the data.                                            
+      34 +ROW_HASH_SQL = "md5(concat_ws(chr(31), {}))".format(           
+      35 +    ", ".join(f'coalesce("{c}", chr(0))' for c in SOURCE_COLUMN
+         +S if c != "_id"))                                              
+      36  
+      37  
+      38  class SchemaDriftError(RuntimeError):
+     ...
+      80      con.begin()
+      81      try:
+      82          con.execute(
+      75 -            "INSERT INTO raw.property_sales_snapshot VALUES (?,
+         - ?, ?, ?, ?, ?, ?)",                                           
+      83 +            "INSERT INTO raw.property_sales_snapshot "         
+      84 +            "(snapshot_id, run_id, resource_id, source_path, ck
+         +an_last_modified, row_count, loaded_at) "                      
+      85 +            "VALUES (?, ?, ?, ?, ?, ?, ?)",                    
+      86              [sha, run_id, resource_id, raw_path, ckan_last_modi
+          fied, expected_rows, utcnow()],
+      87          )
+      88          # strict_mode=false because the header line ends CRLF a
+          nd data rows LF;
+      89          # ingest's csv-module check has already verified every 
+          row's width.
+      90          con.execute(
+      91              f"""
+      82 -            INSERT INTO {RAW_TABLE} (snapshot_id, source_row_nu
+         -mber, {cols})                                                  
+      83 -            SELECT ?, row_number() OVER (), {cols}             
+      92 +            INSERT INTO {RAW_TABLE} (snapshot_id, source_row_nu
+         +mber, row_hash, {cols})                                        
+      93 +            SELECT ?, row_number() OVER (), {ROW_HASH_SQL}, {co
+         +ls}                                                            
+      94              FROM read_csv(?, header = true, all_varchar = true,
+           strict_mode = false,
+      95                            delim = ',', quote = '"', escape = '"
+          ')
+      96              """,
+     ...
+      119      return results
+      120  
+      121  
+      112 -def main() -> None:                                           
+      122 +def prune(con: duckdb.DuckDBPyConnection, keep: int) -> list[s
+          +tr]:                                                          
+      123 +    """Delete rows of all but the `keep` most recently fetched
+          + snapshots.                                                   
+      124 +                                                              
+      125 +    The snapshot catalog row stays (marked pruned_at) and the 
+          +CSV stays on                                                  
+      126 +    disk, so --rebuild brings everything back.                
+      127 +    """                                                       
+      128 +    if keep < 1:                                              
+      129 +        raise ValueError("keep must be at least 1; the latest 
+          +snapshot is never pruned")                                    
+      130 +    victims = [r[0] for r in con.execute(                     
+      131 +        """                                                   
+      132 +        SELECT snapshot_id FROM raw.v_snapshots               
+      133 +        WHERE pruned_at IS NULL                               
+      134 +        QUALIFY row_number() OVER (ORDER BY last_fetched_at DE
+          +SC) > ?                                                       
+      135 +        """, [keep]).fetchall()]                              
+      136 +    for snapshot_id in victims:                               
+      137 +        con.begin()                                           
+      138 +        try:                                                  
+      139 +            con.execute(f"DELETE FROM {RAW_TABLE} WHERE snapsh
+          +ot_id = ?", [snapshot_id])                                    
+      140 +            con.execute("UPDATE raw.property_sales_snapshot SE
+          +T pruned_at = ? WHERE snapshot_id = ?",                       
+      141 +                        [utcnow(), snapshot_id])              
+      142 +            con.commit()                                      
+      143 +        except BaseException:                                 
+      144 +            con.rollback()                                    
+      145 +            raise                                             
+      146 +        print(f"pruned snapshot {snapshot_id[:12]} (CSV kept)"
+          +)                                                             
+      147 +    if not victims:                                           
+      148 +        print("nothing to prune")                             
+      149 +    return victims                                            
+      150 +                                                              
+      151 +                                                              
+      152 +def rebuild(con: duckdb.DuckDBPyConnection) -> list[tuple[str,
+          + str]]:                                                       
+      153 +    """Drop the raw layer and reload every fetched dump from t
+          +he CSV archive.                                               
+      154 +                                                              
+      155 +    Not one transaction (each snapshot loads in its own); if i
+          +nterrupted,                                                   
+      156 +    simply run --rebuild again.                               
+      157 +    """                                                       
+      158 +    missing = [p for (p,) in con.execute(                     
+      159 +        "SELECT DISTINCT raw_path FROM ops.fetch_resource "   
+      160 +        "WHERE strategy = 'dump' AND status = 'fetched'").fetc
+          +hall()                                                        
+      161 +        if not (config.PROJECT_ROOT / p).exists()]            
+      162 +    if missing:                                               
+      163 +        raise FileNotFoundError(f"archive files missing, refus
+          +ing to rebuild: {missing}")                                   
+      164 +    con.execute("DROP SCHEMA IF EXISTS raw CASCADE")          
+      165 +    apply_schema(con)                                         
+      166 +    con.execute("UPDATE ops.fetch_resource SET raw_table = NUL
+          +L "                                                           
+      167 +                "WHERE strategy = 'dump' AND status = 'fetched
+          +'")                                                           
+      168 +    return load_pending(con)                                  
+      169 +                                                              
+      170 +                                                              
+      171 +def main(argv: list[str] | None = None) -> None:              
+      172 +    ap = argparse.ArgumentParser(description=__doc__.splitline
+          +s()[0])                                                       
+      173 +    group = ap.add_mutually_exclusive_group()                 
+      174 +    group.add_argument("--prune-keep", type=int, metavar="N", 
+      175 +                       help="keep only the N most recently fet
+          +ched snapshots in the DB")                                    
+      176 +    group.add_argument("--rebuild", action="store_true",      
+      177 +                       help="drop raw.* and reload every fetch
+          +ed dump from data/raw")                                       
+      178 +    args = ap.parse_args(argv)                                
+      179 +                                                              
+      180      con = connect()
+      181      try:
+      115 -        load_pending(con)                                     
+      182 +        if args.rebuild:                                      
+      183 +            rebuild(con)                                      
+      184 +        elif args.prune_keep is not None:                     
+      185 +            prune(con, args.prune_keep)                       
+      186 +        else:                                                 
+      187 +            load_pending(con)                                 
+      188      finally:
+      189          con.close()
+      190  
+
+● Now the tests. I'm rewriting them so each fixture row has distinct content:
+  rows that differ only in _id now hash identically, which is the intended
+  behavior.
+● Write(tests\test_load_raw.py)
+  ⎿  Added 85 lines, removed 19 lines
+       1 +from datetime import timedelta                                 
+       2 +                                                               
+       3  import pytest
+       4  
+       5  from wprdc.db import connect, utcnow
+       4 -from wprdc.load_raw import SOURCE_COLUMNS, SchemaDriftError, lo
+         -ad_pending                                                     
+       6 +from wprdc.load_raw import SOURCE_COLUMNS, SchemaDriftError, lo
+         +ad_pending, prune, rebuild                                     
+       7  
+       8  ROW = ['16966258', '1010G00075000000', '"0 HILL ST, SOUTH PARK,
+           PA 15129"', '0', ' ', '',
+       9         'HILL', 'ST', '', '', 'SOUTH PARK', 'PA', '15129', '37',
+           'South Park', '945',
+      10         'South Park  ', '2022-07-06', '2022-06-21', '1.0', '1896
+          5', '534', 'H',
+      11         'MULTI-PARCEL SALE', 'DE', 'DEED']
+      12 +DEEDPAGE = SOURCE_COLUMNS.index("DEEDPAGE")                    
+      13 +T0 = utcnow()                                                  
+      14  
+      15  
+      12 -def write_dump(path, n_rows, header=SOURCE_COLUMNS):           
+      13 -    # Mirrors WPRDC's quirk: CRLF after the header, LF after da
+         -ta rows.                                                       
+      16 +def write_dump(path, deedpages, header=SOURCE_COLUMNS, id_start
+         +=16966258):                                                    
+      17 +    """One row per deedpage value, so each row has distinct con
+         +tent.                                                          
+      18 +                                                               
+      19 +    Mirrors WPRDC's quirk: CRLF after the header, LF after data
+         + rows.                                                         
+      20 +    """                                                        
+      21      lines = [",".join(header) + "\r\n"]
+      15 -    for i in range(n_rows):                                    
+      16 -        lines.append(",".join([str(16966258 + i)] + ROW[1:]) + 
+         -"\n")                                                          
+      22 +    for i, page in enumerate(deedpages):                       
+      23 +        row = list(ROW)                                        
+      24 +        row[0], row[DEEDPAGE] = str(id_start + i), str(page)   
+      25 +        lines.append(",".join(row) + "\n")                     
+      26      path.write_bytes("".join(lines).encode())
+      27  
+      28  
+     ...
+      33      c.close()
+      34  
+      35  
+      27 -def add_fetch(con, path, sha, rows, run_id="run-1"):           
+      36 +def add_fetch(con, path, sha, rows, run_id="run-1", minutes=0):
+      37      con.execute(
+      38          """INSERT INTO ops.fetch_resource (run_id, resource_id,
+           strategy, package_id,
+      30 -               status, raw_path, raw_sha256, raw_rows, started_
+         -at)                                                            
+      31 -           VALUES (?, 'res', 'dump', 'pkg', 'fetched', ?, ?, ?,
+         - ?)""",                                                        
+      32 -        [run_id, str(path), sha, rows, utcnow()])              
+      39 +               status, raw_path, raw_sha256, raw_rows, started_
+         +at, finished_at)                                               
+      40 +           VALUES (?, 'res', 'dump', 'pkg', 'fetched', ?, ?, ?,
+         + ?, ?)""",                                                     
+      41 +        [run_id, str(path), sha, rows, T0 + timedelta(minutes=m
+         +inutes),                                                       
+      42 +         T0 + timedelta(minutes=minutes, seconds=30)])         
+      43  
+      44  
+      45 +def fetch_series(con, tmp_path, contents):                     
+      46 +    """contents: list of (name, deedpages); identical deedpages
+         + => identical bytes => same sha."""                            
+      47 +    for i, (name, pages) in enumerate(contents):               
+      48 +        f = tmp_path / f"{name}_{i}.csv"                       
+      49 +        write_dump(f, pages)                                   
+      50 +        add_fetch(con, f, f"sha-{name}", len(pages), run_id=f"r
+         +un-{i}", minutes=i)                                            
+      51 +    return load_pending(con)                                   
+      52 +                                                               
+      53 +                                                               
+      54  def test_load_is_idempotent_and_keeps_values_verbatim(con, tmp_
+          path):
+      55      f = tmp_path / "a.csv"
+      37 -    write_dump(f, 3)                                           
+      56 +    write_dump(f, [1, 2, 3])                                   
+      57      add_fetch(con, f, "sha-a", 3)
+      58      assert load_pending(con) == [(str(f), "loaded")]
+      59      assert load_pending(con) == []  # nothing pending on re-run
+      60  
+      61      # Same bytes fetched again in a later run: recorded, not du
+          plicated.
+      43 -    add_fetch(con, f, "sha-a", 3, run_id="run-2")              
+      62 +    add_fetch(con, f, "sha-a", 3, run_id="run-2", minutes=1)   
+      63      assert load_pending(con) == [(str(f), "already_loaded")]
+      64  
+      65      assert con.execute("SELECT count(*) FROM raw.property_sales
+          ").fetchone() == (3,)
+     ...
+       69      ).fetchone() == ("South Park  ", " ", "0 HILL ST, SOUTH PA
+           RK, PA 15129")
+       70  
+       71  
+       53 -def test_new_content_becomes_new_snapshot(con, tmp_path):     
+       54 -    for name, rows in [("a.csv", 3), ("b.csv", 4)]:           
+       55 -        write_dump(tmp_path / name, rows)                     
+       56 -        add_fetch(con, tmp_path / name, f"sha-{name}", rows, r
+          -un_id=name)                                                   
+       72 +def test_row_hash_ignores_id_and_distinguishes_null_from_empty
+          +(con, tmp_path):                                              
+       73 +    a, b = tmp_path / "a.csv", tmp_path / "b.csv"             
+       74 +    write_dump(a, [1], id_start=100)                          
+       75 +    write_dump(b, [1], id_start=999)          # same content, 
+          +different _id                                                 
+       76 +    add_fetch(con, a, "sha-a", 1)                             
+       77 +    add_fetch(con, b, "sha-b", 1, run_id="run-2", minutes=1)  
+       78      load_pending(con)
+       79 +    assert con.execute("SELECT count(DISTINCT row_hash) FROM r
+          +aw.property_sales").fetchone() == (1,)                        
+       80 +                                                              
+       81 +    # PROPERTYADDRESSDIR is unquoted-empty in the fixture -> N
+          +ULL; '' must hash differently.                                
+       82 +    null_hash, = con.execute("SELECT md5(concat_ws(chr(31), co
+          +alesce(NULL, chr(0)), 'x'))").fetchone()                      
+       83 +    empty_hash, = con.execute("SELECT md5(concat_ws(chr(31), c
+          +oalesce('', chr(0)), 'x'))").fetchone()                       
+       84 +    assert null_hash != empty_hash                            
+       85 +                                                              
+       86 +                                                              
+       87 +def test_latest_follows_most_recent_fetch_even_when_content_re
+          +verts(con, tmp_path):                                         
+       88 +    fetch_series(con, tmp_path, [("A", [1, 2]), ("B", [1, 2, 3
+          +]), ("A", [1, 2])])                                           
+       89 +    assert con.execute("SELECT count(*) FROM raw.property_sale
+          +s_snapshot").fetchone() == (2,)                               
+       90      assert con.execute(
+       59 -        "SELECT snapshot_id, count(*) FROM raw.property_sales 
+          -GROUP BY 1 ORDER BY 1"                                        
+       60 -    ).fetchall() == [("sha-a.csv", 3), ("sha-b.csv", 4)]      
+       91 +        "SELECT DISTINCT snapshot_id FROM raw.property_sales_l
+          +atest").fetchall() == [("sha-A",)]                            
+       92  
+       93  
+       94 +def test_snapshot_diff_and_changes(con, tmp_path):            
+       95 +    fetch_series(con, tmp_path, [("A", [1, 2, 3]), ("B", [2, 3
+          +, 4, 5])])                                                    
+       96 +    diff = con.execute(                                       
+       97 +        "SELECT change, DEEDPAGE FROM raw.snapshot_diff('sha-A
+          +', 'sha-B') ORDER BY 1, 2").fetchall()                        
+       98 +    assert diff == [("added", "4"), ("added", "5"), ("removed"
+          +, "1")]                                                       
+       99 +    assert con.execute(                                       
+      100 +        "SELECT snapshot_id, prev_snapshot_id, net_change, row
+          +s_added, rows_removed "                                       
+      101 +        "FROM raw.v_snapshot_changes").fetchall() == [("sha-B"
+          +, "sha-A", 1, 2, 1)]                                          
+      102 +                                                              
+      103 +                                                              
+      104 +def test_prune_keeps_latest_and_rebuild_restores_from_csv(con,
+          + tmp_path):                                                   
+      105 +    fetch_series(con, tmp_path, [("A", [1]), ("B", [1, 2]), ("
+          +C", [1, 2, 3])])                                              
+      106 +    assert prune(con, keep=1) == ["sha-B", "sha-A"]           
+      107 +    assert con.execute(                                       
+      108 +        "SELECT snapshot_id, count(*) FROM raw.property_sales 
+          +GROUP BY 1").fetchall() == [("sha-C", 3)]                     
+      109 +    assert con.execute(                                       
+      110 +        "SELECT count(*) FROM raw.property_sales_snapshot WHER
+          +E pruned_at IS NOT NULL").fetchone() == (2,)                  
+      111 +    assert prune(con, keep=1) == []  # idempotent             
+      112 +                                                              
+      113 +    rebuild(con)                                              
+      114 +    assert con.execute(                                       
+      115 +        "SELECT snapshot_id, count(*) FROM raw.property_sales 
+          +GROUP BY 1 ORDER BY 1").fetchall() == [                       
+      116 +        ("sha-A", 1), ("sha-B", 2), ("sha-C", 3)]             
+      117 +    assert con.execute(                                       
+      118 +        "SELECT count(*) FROM raw.property_sales_snapshot WHER
+          +E pruned_at IS NOT NULL").fetchone() == (0,)                  
+      119 +                                                              
+      120 +                                                              
+      121 +def test_rebuild_refuses_if_archive_file_missing(con, tmp_path
+          +):                                                            
+      122 +    fetch_series(con, tmp_path, [("A", [1])])                 
+      123 +    (tmp_path / "A_0.csv").unlink()                           
+      124 +    with pytest.raises(FileNotFoundError):                    
+      125 +        rebuild(con)                                          
+      126 +    assert con.execute("SELECT count(*) FROM raw.property_sale
+          +s").fetchone() == (1,)                                        
+      127 +                                                              
+      128 +                                                              
+      129  def test_schema_drift_fails_and_loads_nothing(con, tmp_path):
+      130      f = tmp_path / "drift.csv"
+       65 -    write_dump(f, 2, header=SOURCE_COLUMNS[:-1] + ["NEWCOL"]) 
+      131 +    write_dump(f, [1, 2], header=SOURCE_COLUMNS[:-1] + ["NEWCO
+          +L"])                                                          
+      132      add_fetch(con, f, "sha-d", 2)
+      133      with pytest.raises(SchemaDriftError, match="NEWCOL"):
+      134          load_pending(con)
+     ...
+      137  
+      138  def test_row_count_mismatch_rolls_back(con, tmp_path):
+      139      f = tmp_path / "short.csv"
+       74 -    write_dump(f, 2)                                          
+      140 +    write_dump(f, [1, 2])                                     
+      141      add_fetch(con, f, "sha-s", 5)  # landing check claimed 5 r
+           ows
+      142      with pytest.raises(RuntimeError, match="loaded 2 rows"):
+      143          load_pending(con)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All 27 tests pass. Since the existing raw tables lack the new columns, I'll
+  drop the raw schema, rebuild it from the CSV archive to confirm it's
+  self-sufficient, and then verify the views.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The rebuild succeeded—the raw layer was dropped and reloaded from the CSV
+  alone, producing 506,425 rows with 506,425 distinct hashes, and
+  v_snapshot_changes correctly stays empty until a second snapshot exists.
+  Committing now.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● I've made all three changes, and the real raw layer was rebuilt from the CSV
+  alone. All 27 tests pass, and the work is committed as f276450.
+
+  1. Row hashes and comparing snapshots
+  - raw.property_sales.row_hash is a hash of every source column except _id, and
+    it distinguishes NULL from an empty string. In today's data, 506,425 rows
+    give 506,425 distinct hashes.
+  - SELECT * FROM raw.snapshot_diff('<old>', '<new>') lists rows as added or
+    removed. An edited record appears as one of each.
+  - raw.v_snapshot_changes shows, for each snapshot, how many rows were added or
+    removed compared with the one before. It stays empty until there's a second
+    snapshot.
+
+  2. The CSV files as the permanent archive
+  - python -m wprdc.load_raw --prune-keep N keeps the rows of only the N most
+    recently downloaded snapshots. Older snapshots stay listed in the catalog,
+    marked with pruned_at, and their CSV files are never touched. It refuses to
+    prune the latest snapshot.
+  - python -m wprdc.load_raw --rebuild drops the whole raw layer and reloads it
+    from the CSV files. It refuses to start if any file is missing. I used it to
+    migrate your real database, so it's already been tested on real data.
+
+  3. Latest view
+  - raw.property_sales_latest is the snapshot from the most recent download.
+    It's decided from the download log rather than load time, so if the data
+    goes A, then B, then back to A, the view correctly shows A. A test covers
+    that case.
+  - raw.v_snapshots lists the snapshots in download order, with how many times
+    each was downloaded.
+
+  What I'd do next
+  - Tomorrow: run python -m wprdc.ingest and then python -m wprdc.load_raw, so
+    that v_snapshot_changes has real data. That will also show whether WPRDC's
+    daily rebuild writes rows in the same order. If it doesn't, an unchanged
+    dataset still produces a different file fingerprint and gets loaded as a new
+    snapshot. The row hashes will show whether the content actually changed.
+  - After that:
+    - The cleaned layer: proper types, trimmed text, and testing a natural key
+      such as PARID + DEEDBOOK + DEEDPAGE.
+    - Data quality checks: this includes the RECORDDATE problems found earlier,
+      the 0212-08-01 date and dates in the future.
+    - A single pipeline command that runs everything as one logged run.
+
+  Your 2.0 backup database and the export folder are still in data/. Tell me
+  when you're ready and I'll delete them.
+
+✻ Churned for 2m 51s · done 4:55 PM
+
+❯ go ahead and delete the backup and export                                     
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The backup and export are deleted. data/ now holds only wprdc.duckdb and the
+  raw/ archive. Next I'll check the archive for files the database doesn't know
+  about.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The backup and export are deleted. data/ now holds only wprdc.duckdb and the
+  raw/ CSV archive.
+
+  The archive check turned up something to fix:
+
+  There's an unrecorded CSV in the archive. 20261026T194547Z_066bdfa4.csv comes
+  from the very first ingest, the one that failed on DuckDB's CSV sniffer. It
+  downloaded fine, but no ops.fetch_resource row points to it, so --rebuild and
+  the snapshot views don't know it exists. Its size is identical to the recorded
+  file, so it's almost certainly the same content.
+
+  The cause is a gap that still exists in ingest.py. If the download succeeds
+  but the check after it fails (the column-count check, the row count, or the
+  CSV parse), the failed row is written without raw_path or the file's
+  fingerprint. The file stays on disk with no record of it. Since you want every
+  successful download kept, the record should point to it.
+
+  The fix is to split the download from the check in ingest.py, so a failed
+  check still records raw_path, raw_sha256 and raw_bytes with status = 'failed'.
+  Then every file in data/raw traces back to a run. Failed rows already aren't
+  loaded, because load_raw only takes status = 'fetched'.
+
+  I left the stray file alone, since you want every download kept. I can make
+  that fix and add a row for this file to ops.fetch_resource (marked failed,
+  with its fingerprint), so the archive and the log match. Should I go ahead?
+
+✻ Churned for 20s · done 4:56 PM
+
+❯ yes, make the fix and backfill the record                                     
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(wprdc\ingest.py)
+  ⎿  Added 4 lines, removed 3 lines
+      58      return n
+      59  
+      60  
+      61 -def fetch_dump(ckan: Ckan, resource_id: str, dest_base: Path) -
+         -> tuple[Path, str, int, int]:                                  
+      62 -    result = ckan.dump(resource_id, dest_base.with_suffix(".csv
+         -"))                                                            
+      63 -    return result.path, result.sha256, result.bytes, _count_csv
+         -_rows(result.path)                                             
+      61 +def _recorded_path(path: Path) -> str:                         
+      62 +    # Project-relative with POSIX separators so the recorded pa
+         +th works on any OS.                                            
+      63 +    return (path.relative_to(config.PROJECT_ROOT) if path.is_re
+         +lative_to(config.PROJECT_ROOT)                                 
+      64 +            else path).as_posix()                              
+      65  
+      66  
+      67  def fetch_datastore(ckan: Ckan, resource_id: str, dest_base: Pa
+          th, total: int,
+
+● Update(wprdc\ingest.py)
+  ⎿  Added 9 lines, removed 6 lines
+      119      total = ckan.datastore_total(resource_id)
+      120      stamp = started.strftime("%Y%m%dT%H%M%SZ")
+      121      dest_base = config.RAW_DIR / config.PACKAGE_ID / resource_
+           id / strategy / f"{stamp}_{run_id[:8]}"
+      122 +    # Filled in as soon as bytes are on disk, so a failure in 
+          +a later check                                                 
+      123 +    # still records which archived file it was about.         
+      124 +    landed: dict = {}                                         
+      125      try:
+      126          if strategy == "dump":
+      124 -            path, sha, n_bytes, n_rows = fetch_dump(ckan, reso
+          -urce_id, dest_base)                                           
+      127 +            result = ckan.dump(resource_id, dest_base.with_suf
+          +fix(".csv"))                                                  
+      128 +            path, sha, n_bytes = result.path, result.sha256, r
+          +esult.bytes                                                   
+      129 +            landed = dict(raw_path=_recorded_path(path), raw_s
+          +ha256=sha, raw_bytes=n_bytes)                                 
+      130 +            n_rows = _count_csv_rows(path)                    
+      131          else:
+      132              path, sha, n_bytes, n_rows = fetch_datastore(ckan,
+            resource_id, dest_base, total, page_size)
+      133      except Exception as exc:
+      134          record("failed", ckan_reported_total=total,
+      129 -               error_message=f"{type(exc).__name__}: {exc}"[:2
+          -000])                                                         
+      135 +               error_message=f"{type(exc).__name__}: {exc}"[:2
+          +000], **landed)                                               
+      136          raise
+      137  
+      138      record(
+      139          "fetched", ckan_reported_total=total,
+      134 -        # POSIX separators so the recorded path works on any O
+          -S.                                                            
+      135 -        raw_path=(path.relative_to(config.PROJECT_ROOT) if pat
+          -h.is_relative_to(config.PROJECT_ROOT)                         
+      136 -                  else path).as_posix(),                      
+      137 -        raw_sha256=sha, raw_bytes=n_bytes, raw_rows=n_rows,   
+      140 +        raw_path=_recorded_path(path), raw_sha256=sha, raw_byt
+          +es=n_bytes, raw_rows=n_rows,                                  
+      141          content_changed=(prev is None or prev[1] != sha),
+      142      )
+      143      print(f"landed {n_rows:,} rows / {n_bytes:,} bytes -> {pat
+           h}")
+
+● Now a test for the failure path. A stub CKAN serves a downloaded file that
+  fails the column-count check, and the failed row should still point to that
+  file.
+
+● Write(tests\test_ingest.py)
+  ⎿  Wrote 69 lines to tests\test_ingest.py
+       1 import hashlib
+       2 
+       3 import pytest
+       4 
+       5 from wprdc import config
+       6 from wprdc.db import connect
+       7 from wprdc.http_client import DownloadResult
+       8 from wprdc.ingest import ingest
+       9 
+      10 RESOURCE_ID = "res-1"
+     … +72 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All 29 tests pass. Now the backfill. I'll gather what's known about the failed
+  run and fingerprint the stray file.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Found a missing pytz dependency needed for DuckDB to fetch
+  timestamp-with-timezone values into Python—it would fail for any code or
+  reviewer reading those columns. I'll install it, add it to requirements.txt,
+  and rerun.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The logs provide everything needed for the backfill—the download record's
+  checksum and byte count confirm the stray file matches the already-loaded
+  snapshot. CKAN's last_modified and row count weren't captured, so I'll leave
+  those NULL rather than guess.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The backfill went in. Next: check that every file on disk now has a log
+  record, pin pytz, and commit.
+
+● Bash("$LOCALAPPDATA/Microsoft/WinGet/Packages/DuckDB.cli_Microsoft.Winget.Sour
+      ce_8wekyb3d8bbwe/duckdb.exe" -readonly data/wprdc.duckdb -c "
+      SELECT f.file AS unrecord…)
+  ⎿  ┌─────────────────┐
+     │ unrecorded_file │
+     │     varchar     │
+     … +20 lines (ctrl+o to expand)
+  ⎿  Updated requirements.txt (+2 -0)
+      3  # older CLIs cannot open).
+      4  duckdb==1.5.6
+      5  requests==2.32.3
+      6 +# DuckDB needs pytz to return TIMESTAMPTZ values to Python      
+      7 +pytz==2026.5                                                    
+      8  pytest==9.0.2
+
+● I made the fix and backfilled the record. Every CSV in data/raw now has a
+  matching row in ops.fetch_resource; a query listing files with no record
+  returns zero rows. Committed as 26d7c70, and all 29 tests pass.
+
+  The fix (wprdc/ingest.py): the download details (file path, fingerprint and
+  size) are captured as soon as the file is on disk. If a later check then fails
+  (the column count, the row count, or the CSV parse), the failed row still
+  points to the file. A new test, tests/test_ingest.py, uses a stub CKAN that
+  delivers a file with a malformed row. It confirms the file is kept and the
+  failed row points to it. A second test covers fetched, then skipped, then a
+  forced fetch, and checks that every download is kept.
+
+  The backfill is one failed row for run 066bdfa4, built only from what the logs
+  captured:
+  - Path, fingerprint and size come from that run's successful download attempt.
+    The fingerprint is 033990b9…, identical to the loaded snapshot, so it was
+    the same content all along.
+  - Start and finish times and the error come from the run's record, with a
+    [backfilled …] note at the start of the error message.
+  - CKAN's last_modified and total row count are NULL. That run never stored
+    them, so I didn't guess.
+
+  Failed rows aren't loaded, so load_raw and the snapshot views are unaffected.
+
+  One more fix along the way: DuckDB 1.5.6's Python client needs the pytz
+  package to return timestamp-with-timezone values. It wasn't installed. The
+  pipeline code hadn't hit this yet, but my first query of the run log failed on
+  it, and a reviewer's ad-hoc queries would too. I installed it and pinned
+  pytz==2026.5 in requirements.txt, with a comment explaining why.
+
+  Next step: the cleaned layer and the data quality checks. Tomorrow, after
+  WPRDC's 07:00 UTC refresh, run python -m wprdc.ingest and then python -m 
+  wprdc.load_raw to get the second snapshot for comparison.
+
+✻ Cooked for 1m 51s · done 4:58 PM
+
+❯ has this all been committed and pushed to Github?                             
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Everything is committed, but nothing has been pushed. The working tree is
+  clean, and local main is 5 commits ahead of GitHub:
+
+  26d7c70 Record archived file on failed validation; pin pytz
+  f276450 Add row hashes, latest view, snapshot diffs, prune and rebuild
+  9d79aaa Pin dependencies; use DuckDB 1.5.6 to match the CLI
+  39983d6 Add raw snapshot layer for property sales
+  55bcb7d Add logged CKAN fetch layer and raw landing for property sales
+
+  I didn't push because pushing publishes the code, and the exercise requires a
+  public repository. Only code would go up: data/ (the CSVs and the DuckDB file)
+  is in .gitignore.
+
+  Two things to decide before pushing:
+  - Commit attribution: each commit ends with a Co-Authored-By: Claude line.
+    That's consistent with the AI disclosure they ask for, but if you'd rather
+    disclose only in the README, I'd need to rewrite those commits before they
+    go public.
+  - README: the repository's README.md is still the one-line placeholder. A
+    reviewer who looks early would see a bare repo. That's probably fine before
+    the deadline, but worth knowing.
+
+  Should I push the commits as they are?
+
+✻ Crunched for 11s · done 5:00 PM
+❯ this is a private repository for now, but I intend to make it public later.   
+  would that be a problem for the reviewer?                                     
+
+● No, that isn't a problem, as long as the repository is public by the time you
+  email your submission (11:00 am on November 2). Reviewers only need it visible
+  from then on; they can't see a private repository at all, so nothing they see
+  is affected by when you switch.
+
+  What becomes visible when you switch:
+  - The full history, not just the final files: every commit, message, timestamp
+    and Co-Authored-By line. This is the moment to rewrite anything you don't
+    want shown. Nothing sensitive is in it now: no keys or credentials (the API
+    needs none), and data/ was never committed.
+  - The timeline. Commit dates show the work happening over this week. That's
+    normal for an exercise like this, and if anything it reads as a real
+    process.
+
+  How to switch:
+  - On GitHub: Settings → General → Danger Zone → Change visibility.
+  - Or gh repo edit stirone/WPRDC-Data-Pipeline-Exercise --visibility public 
+    --accept-visibility-change-consequences.
+
+  Afterwards, open the repository URL in a private/incognito browser window to
+  confirm it loads without being signed in.
+
+  Two small things to know:
+  - Switching to public shows the repository in your GitHub profile's public
+    activity. That's harmless.
+  - If you push again after the deadline, reviewers may see those commits too.
+    That's fine, but try to have your final work in before you send the link.
+
+  Since it's private now, pushing is safe and gives you an off-machine backup.
+  Should I push the 5 commits?
+
+✻ Cogitated for 10s · done 5:01 PM
+
+❯ yes, push the commits.  I am not at all wanting to hide the fact that Claude  
+  is doing most of this work. How do I save this session for someone to review  
+  as well, so they can see my thinking and how I work with Claude Code?         
+
+  Pushed to main (ctrl+o to expand)
+
+● The 5 commits are pushed, and local main and GitHub are in sync. Now I'll
+  check where Claude Code stores this session's transcript, so I can point you
+  to the actual file.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The 5 commits are on GitHub.
+
+  To save this session for reviewers, there are a few ways, and they're best
+  combined:
+
+  1. /export, the readable transcript (main one). Type /export in the prompt. It
+  writes this whole conversation as plain text, either to a file you name or to
+  the clipboard. For example, save it into the repository as:
+  docs/ai-sessions/2026-10-26-ingest-and-raw-layer.txt
+  Run /export again at the end of each working session and add a file per
+  session, so the history builds up as you go.
+
+  2. The raw session log (full record). Claude Code already stores every session
+  as a JSON Lines file:
+  C:\Users\steph\.claude\projects\C--Users-steph-job-search-WPRDC-Data-Pipeline-
+  Exercise\0f6e156e-bb57-4fc4-b8e5-b5554a7b3f5f.jsonl
+  It holds every message, tool call and tool output, and is about 2 MB so far.
+  It's complete and has timestamps, but it's hard to read. Keep a copy as
+  evidence, but point reviewers at the /export text. You can also reopen this
+  session later with claude --resume.
+
+  3. Your earlier Claude.ai conversation. You explored the datasets there first.
+  Claude.ai has a Share button that creates a link, which you can add to the
+  README so the story starts at the beginning.
+
+  4. A short guide in the repository. Something like docs/AI_USAGE.md, which
+  also covers the exercise's AI disclosure requirement:
+  - which tools you used (Claude.ai for exploring, Claude Code for building)
+  - what you decided yourself and what you delegated. Examples from today: you
+    chose to keep a snapshot per download, to keep every CSV, to avoid the
+    history table because rebuilding a given day would be too complex, and to
+    move to DuckDB 1.5.6. You also caught that the data hadn't been
+    re-downloaded under 1.5.6, and questioned the duplicate-file "problem" until
+    it was correctly downgraded.
+  - links to the session transcripts
+
+  Those moments show your judgment better than the raw transcripts do, and
+  reviewers will appreciate a guide to them.
+
+  Before you commit a transcript, read it through once. Once the repository is
+  public, the transcripts are too, and they contain:
+  - the hiring email you pasted, including the Deputy CIO's name and signature.
+    I'd ask whether the county is comfortable with that being public, or replace
+    it with a short summary of the requirements.
+  - local paths showing your Windows username, which is harmless but visible.
+  - full tool output. Today's sessions contain no credentials, but it's worth a
+    quick look.
+
+  I can write docs/AI_USAGE.md now with today's decisions, ready for you to add
+  the transcripts to.
+
+✻ Crunched for 30s · done 5:03 PM
+
+❯ yes, write docs/AI_USAGE.md                                                   
+
+● Write(docs\AI_USAGE.md)
+  ⎿  Wrote 109 lines to docs\AI_USAGE.md
+      1 # AI Usage
+      2 
+      3 AI tools were used extensively on this exercise. This document ex
+      4 how the work was divided, and where the important decisions came 
+        from, so a reviewer
+      5 can judge both the code and how I worked with the AI.
+      6 
+        de to them.
+      8 
+      9 ## Tools
+     … +158 lines (ctrl+o to expand)
+
+● I'll replace a rounded figure with the exact numbers from the query output.
+
+● Update(docs\AI_USAGE.md)
+  ⎿  Added 2 lines, removed 2 lines
+      74  
+      75  ## AI mistakes caught during the work
+      76  
+      77 -- **A wrong duplicate count.** A first hashing query reported a
+         -bout 190k                                                      
+      78 -  exact-duplicate rows. Claude noticed this contradicted anothe
+         -r query, traced it to                                          
+      77 +- **A wrong duplicate count.** A first hashing query reported o
+         +nly 313,721 distinct                                           
+      78 +  rows out of 506,425. Claude noticed this contradicted another
+         + query, traced it to                                           
+      79    its own SQL bug (DuckDB `COLUMNS()` expanding into 25 hash co
+          lumns), and corrected
+      80    it before anything was built on it. The data has no duplicate
+          s.
+      81  - **A path fix that silently did nothing.** A shell-escaping pr
+          oblem meant the first
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● I've written docs/AI_USAGE.md and committed it locally as f901eff. It isn't
+  pushed yet.
+
+  What's in it
+  - Tools: Claude.ai for exploring the datasets and the first logging-schema
+    idea; Claude Code for building, testing and committing.
+  - Division of labor, stated plainly: Claude Code wrote nearly all the code,
+    SQL and tests; you set the direction, made the design decisions and reviewed
+    the work.
+  - Session log: a table linking each transcript.
+  - Decisions you made: logging as part of production, every CSV kept, full
+    snapshots instead of the history table (and why), the DuckDB 1.5.6 pin, and
+    the fix for files with no record.
+  - Where you questioned or corrected me: the overstated "verified on 1.5.6",
+    "adds no rows to what?", the duplicate-file "problem", and the clarification
+    that hashing makes the load incremental, not the download.
+  - My mistakes caught along the way: the wrong duplicate count from my SQL bug,
+    the path fix that silently did nothing, and the missing pytz.
+  - Findings from the data, and how the work was verified.
+
+  Before it's final:
+  1. Read it and change anything you'd say differently. It's written in your
+     voice ("I chose…"), but I drafted it from this session, so check that the
+     decisions read the way you think about them.
+  2. Fill in the Claude.ai row: the date and the share link.
+  3. Export this session: type /export and save it as
+     docs/ai-sessions/2026-10-26-ingest-and-raw-layer.txt, which is the path the
+     table already links to. Read through it first. It contains the hiring
+     email with the Deputy CIO's name, so you may want to replace that paste
+     with a summary before the repository goes public.
+  4. Update the doc at the end of each session with new decisions and
+     corrections. I can do that if you ask at the end of a session.
+
+  Should I push f901eff now, or wait until you've reviewed it and added the
+  transcript?
+
+✻ Sautéed for 50s · done 5:06 PM
