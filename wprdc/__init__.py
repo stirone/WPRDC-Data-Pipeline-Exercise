@@ -1,0 +1,1 @@
+"""WPRDC property sales pipeline."""
