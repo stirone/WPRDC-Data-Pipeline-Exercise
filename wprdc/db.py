@@ -31,9 +31,13 @@ def connect(db_path: Path | None = None) -> duckdb.DuckDBPyConnection:
     path.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(path))
     con.execute("SET TimeZone = 'UTC'")
+    apply_schema(con)
+    return con
+
+
+def apply_schema(con: duckdb.DuckDBPyConnection) -> None:
     for schema_file in sorted(config.SQL_DIR.glob("*_schema.sql")):
         con.execute(schema_file.read_text(encoding="utf-8"))
-    return con
 
 
 def _git_state() -> tuple[str | None, bool | None]:
