@@ -58,9 +58,10 @@ def _count_csv_rows(path: Path) -> int:
     return n
 
 
-def fetch_dump(ckan: Ckan, resource_id: str, dest_base: Path) -> tuple[Path, str, int, int]:
-    result = ckan.dump(resource_id, dest_base.with_suffix(".csv"))
-    return result.path, result.sha256, result.bytes, _count_csv_rows(result.path)
+def _recorded_path(path: Path) -> str:
+    # Project-relative with POSIX separators so the recorded path works on any OS.
+    return (path.relative_to(config.PROJECT_ROOT) if path.is_relative_to(config.PROJECT_ROOT)
+            else path).as_posix()
 
 
 def fetch_datastore(ckan: Ckan, resource_id: str, dest_base: Path, total: int,
@@ -118,22 +119,25 @@ def ingest(con, ckan: Ckan, run_id: str, *, resource_id: str, strategy: str,
     total = ckan.datastore_total(resource_id)
     stamp = started.strftime("%Y%m%dT%H%M%SZ")
     dest_base = config.RAW_DIR / config.PACKAGE_ID / resource_id / strategy / f"{stamp}_{run_id[:8]}"
+    # Filled in as soon as bytes are on disk, so a failure in a later check
+    # still records which archived file it was about.
+    landed: dict = {}
     try:
         if strategy == "dump":
-            path, sha, n_bytes, n_rows = fetch_dump(ckan, resource_id, dest_base)
+            result = ckan.dump(resource_id, dest_base.with_suffix(".csv"))
+            path, sha, n_bytes = result.path, result.sha256, result.bytes
+            landed = dict(raw_path=_recorded_path(path), raw_sha256=sha, raw_bytes=n_bytes)
+            n_rows = _count_csv_rows(path)
         else:
             path, sha, n_bytes, n_rows = fetch_datastore(ckan, resource_id, dest_base, total, page_size)
     except Exception as exc:
         record("failed", ckan_reported_total=total,
-               error_message=f"{type(exc).__name__}: {exc}"[:2000])
+               error_message=f"{type(exc).__name__}: {exc}"[:2000], **landed)
         raise
 
     record(
         "fetched", ckan_reported_total=total,
-        # POSIX separators so the recorded path works on any OS.
-        raw_path=(path.relative_to(config.PROJECT_ROOT) if path.is_relative_to(config.PROJECT_ROOT)
-                  else path).as_posix(),
-        raw_sha256=sha, raw_bytes=n_bytes, raw_rows=n_rows,
+        raw_path=_recorded_path(path), raw_sha256=sha, raw_bytes=n_bytes, raw_rows=n_rows,
         content_changed=(prev is None or prev[1] != sha),
     )
     print(f"landed {n_rows:,} rows / {n_bytes:,} bytes -> {path}")

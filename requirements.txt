@@ -3,4 +3,6 @@
 # older CLIs cannot open).
 duckdb==1.5.6
 requests==2.32.3
+# DuckDB needs pytz to return TIMESTAMPTZ values to Python
+pytz==2026.5
 pytest==9.0.2
