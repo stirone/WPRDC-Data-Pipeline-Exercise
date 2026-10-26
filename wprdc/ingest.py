@@ -130,7 +130,9 @@ def ingest(con, ckan: Ckan, run_id: str, *, resource_id: str, strategy: str,
 
     record(
         "fetched", ckan_reported_total=total,
-        raw_path=str(path.relative_to(config.PROJECT_ROOT)) if path.is_relative_to(config.PROJECT_ROOT) else str(path),
+        # POSIX separators so the recorded path works on any OS.
+        raw_path=(path.relative_to(config.PROJECT_ROOT) if path.is_relative_to(config.PROJECT_ROOT)
+                  else path).as_posix(),
         raw_sha256=sha, raw_bytes=n_bytes, raw_rows=n_rows,
         content_changed=(prev is None or prev[1] != sha),
     )
