@@ -1,0 +1,336 @@
+
+> <browser_instruction># Claude in Chrome browser automation
+
+  You have access to browser automation tools (mcp__claude-in-chrome__*) for
+  interacting with web pages in Chrome. Follow these guidelines for effective
+  browser automation.
+
+  ## Loading deferred tools
+
+  If the mcp__claude-in-chrome__* tools are deferred (must be loaded via
+  ToolSearch before use), load every tool you expect to need in ONE ToolSearch
+  call — the select query accepts a comma-separated list — never one call per
+  tool. Start with the core set:
+
+  ToolSearch with query
+  "select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__naviga
+  te,mcp__claude-in-chrome__computer,mcp__claude-in-chrome__read_page,mcp__clau
+  de-in-chrome__tabs_create_mcp,mcp__claude-in-chrome__tabs_close_mcp"
+
+  Add task-specific tools to the same call when the task obviously needs them:
+  read_console_messages / read_network_requests for debugging, form_input for
+  forms, gif_creator for recordings, javascript_tool for page scripting.
+
+  ## GIF recording
+
+  When performing multi-step browser interactions that the user may want to
+  review or share, use mcp__claude-in-chrome__gif_creator to record them.
+
+  You must ALWAYS:
+  * Capture extra frames before and after taking actions to ensure smooth
+  playback
+  * Name the file meaningfully to help the user identify it later (e.g.,
+  "login_process.gif")
+
+  ## Console log debugging
+
+  You can use mcp__claude-in-chrome__read_console_messages to read console
+  output. Console output may be verbose. If you are looking for specific log
+  entries, use the 'pattern' parameter with a regex-compatible pattern. This
+  filters results efficiently and avoids overwhelming output. For example, use
+  pattern: "[MyApp]" to filter for application-specific logs rather than
+  reading all console output.
+
+  ## Alerts and dialogs
+
+  IMPORTANT: Do not trigger JavaScript alerts, confirms, prompts, or browser
+  modal dialogs through your actions. These browser dialogs block all further
+  browser events and will prevent the extension from receiving any subsequent
+  commands. Instead, when possible, use console.log for debugging and then use
+  the mcp__claude-in-chrome__read_console_messages tool to read those log
+  messages. If a page has dialog-triggering elements:
+  1. Avoid clicking buttons or links that may trigger alerts (e.g., "Delete"
+  buttons with confirmation dialogs)
+  2. If you must interact with such elements, warn the user first that this may
+  interrupt the session
+  3. Use mcp__claude-in-chrome__javascript_tool to check for and dismiss any
+  existing dialogs before proceeding
+
+  If you accidentally trigger a dialog and lose responsiveness, inform the user
+  they need to manually dismiss it in the browser.
+
+  ## Avoid rabbit holes and loops
+
+  When using browser automation tools, stay focused on the specific task. If
+  you encounter any of the following, stop and ask the user for guidance:
+  - Unexpected complexity or tangential browser exploration
+  - Browser tool calls failing or returning errors after 2-3 attempts
+  - No response from the browser extension
+  - Page elements not responding to clicks or input
+  - Pages not loading or timing out
+  - Unable to complete the browser task despite multiple approaches
+
+  Explain what you attempted, what went wrong, and ask how the user would like
+  to proceed. Do not keep retrying the same failing browser action or explore
+  unrelated pages without checking in first.
+
+  ## Tab context and session startup
+
+  IMPORTANT: At the start of each browser automation session, call
+  mcp__claude-in-chrome__tabs_context_mcp first to get information about the
+  user's current browser tabs. Use this context to understand what the user
+  might want to work with before creating new tabs.
+
+  Never reuse tab IDs from a previous/other session. Follow these guidelines:
+  1. Only reuse an existing tab if the user explicitly asks to work with it
+  2. Otherwise, create a new tab with mcp__claude-in-chrome__tabs_create_mcp
+  3. If a tool returns an error indicating the tab doesn't exist or is invalid,
+  call tabs_context_mcp to get fresh tab IDs
+  4. When a tab is closed by the user or a navigation error occurs, call
+  tabs_context_mcp to see what tabs are available</browser_instruction>
+
+> Where are we on this project?
+
+  Ran 5 shell commands (ctrl+o to expand)
+
+● Reading the last session's notes. One more quick check, on the database state
+  and whether the analytical question was ever chosen.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Where things stand (Oct 28; due Nov 2, 11:00 am, so about 5 days left)
+
+  You're building the Property Sale Transactions pipeline for the Allegheny
+  County Senior Data Engineer exercise. Everything is committed and pushed to
+  GitHub. The repository is still private.
+
+  Done (the first session, Oct 26)
+
+  - Logged ingest: a requests-based CKAN client that records every run, attempt
+    and resource in ops.*. It sorts responses into categories like empty_body
+    and non_json based on what actually came back, and the tests include a
+    replay of the real blank → HTML → JSON failure.
+  - Raw layer: every downloaded CSV is kept as the permanent archive.
+    raw.property_sales stores full snapshots with row hashes, and there are
+    views for the latest snapshot and for changes between snapshots. The raw
+    tables can be pruned and rebuilt from the archive.
+  - Environment: DuckDB is pinned to 1.5.6 so the Python library matches the
+    CLI, and pytz is pinned too.
+  - docs/AI_USAGE.md and the session transcript are written.
+
+  Requirements still to do
+
+  1. Choose the analytical question. This was left open last session and it
+     blocks the cleaned table. Candidates raised then: how sale codes like $1
+     and multi-parcel sales are handled, breakdowns by municipality, and the gap
+     between the sale date and the date the deed was recorded.
+  2. Cleaned/modeled layer: proper types, trimmed text, and a natural key. _id
+     can't be the key because it changes on every refresh; the candidate is
+     PARID + DEEDBOOK + DEEDPAGE, which still needs testing.
+  3. Data quality checks that fail on bad data. They need at least one check
+     based on something found in this dataset. The RECORDDATE value 0212-08-01
+     and the future dates are ready-made examples.
+  4. The output table that answers the question.
+  5. A single python -m wprdc.pipeline command that runs everything as one
+     logged run.
+  6. README.md. It's still a one-line placeholder. It needs the three main
+     design decisions and the alternatives rejected, the surprises in the data,
+     what changes at 100x scale or with daily refreshes, and what was left out.
+     Most of the material is already in AI_USAGE.md.
+
+  Loose ends
+
+  - The second snapshot was never taken. The database has only one snapshot,
+    from Oct 26, so v_snapshot_changes has nothing to compare yet. Running
+    python -m wprdc.ingest and then python -m wprdc.load_raw today would fix
+    that. It would also show whether WPRDC's daily rebuild changes the row
+    order.
+  - The Claude.ai row in AI_USAGE.md still needs its date and share link.
+  - The committed transcript includes the full hiring email, with the Deputy
+    CIO's name and signature. That's fine while the repository is private, but
+    decide before you make it public whether to replace it with a summary.
+  - Making the repository public needs to happen before you email your
+    submission.
+
+  I'd suggest starting by taking today's snapshot, then choosing the question so
+  the cleaned layer and the checks can be built around it. Want me to run the
+  ingest now and suggest some questions based on the data?
+
+> ! python -m wprdc.ingest
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+● Your ! command's output didn't reach me, so I ran the ingest myself. The
+  archive has only one new file, so it didn't download twice.
+
+  The ingest worked and found a new version of the dataset.
+  - It made 3 requests and all came back ok (HTTP 200), with none of the blank
+    or HTML responses this time.
+  - It saved 506,726 rows (109 MB) to
+    data/raw/real-estate-sales/.../dump/20261028T215221Z_96a8849e.csv.
+  - That's 301 more rows than the Oct 26 snapshot (506,425), so WPRDC has
+    refreshed the data since then.
+
+  The new file isn't in the database yet. Running python -m wprdc.load_raw loads
+  it as snapshot #2. Then v_snapshot_changes will show how many rows were
+  added, changed or deleted. It will also show whether the daily rebuild rewrote
+  rows that didn't actually change. Want me to run it?
+
+> yes.  why did it make 3 requests?  is that the normal number of requests?
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+● Snapshot #2 is loaded. To answer your question: 3 requests is normal for a run
+  that downloads.
+
+  What the 3 requests are (from ops.fetch_attempt for today's run):
+
+  #: 1
+  Request: package_show?id=real-estate-sales
+  Why: Gets the dataset's metadata, including the resource's last_modified. The
+  pipeline compares that with the last successful fetch to decide whether to
+  download at all.
+  Time: 421 ms
+  ────────────────────────────────────────
+  #: 2
+  Request: datastore_search?limit=0
+  Why: Returns no rows, only the total row count. That count is recorded, so the
+
+  downloaded file can be checked against it.
+  Time: 89 ms
+  ────────────────────────────────────────
+  #: 3
+  Request: datastore/dump/...
+  Why: Downloads the full CSV.
+  Time: 3.1 s, 109 MB
+
+  Request counts from every run so far:
+  - 3 requests when the data has changed: metadata, count, download. Today's run
+    was one of these.
+  - 1 request when the data is unchanged. package_show shows the same
+    last_modified, so the run stops there. Two runs on Oct 26 did this.
+  - More than 3 when retries happen. Your first run on Oct 26 made 6 requests, 3
+    of which failed (the shaky behavior you saw). Each retry is logged as its
+    own row.
+
+  That makes the request count a quick health check: anything above 3 means
+  WPRDC had problems during that run.
+
+  What changed between Oct 26 and today (raw.v_snapshot_changes):
+  - 506,425 → 506,726 rows, a net gain of 301.
+  - 507 row versions are new and 206 are gone. The comparison uses row hashes,
+    so a record that was edited counts as one removed and one added. Some of the
+    206 are probably corrections rather than real deletions.
+  - This answers last session's open question: WPRDC's daily rebuild did not
+    rewrite unchanged rows. All 506,000 or so other rows hash the same as
+    before. So comparing snapshots reliably picks out the rows that really
+    changed, and "how I'd handle updates" in the README now has real evidence
+    behind it.
+
+  Next comes choosing the analytical question, which shapes the cleaned table.
+  Want me to look at the data and suggest a few candidates? I could also break
+  down the 206 removed rows into edits versus real deletions once we've tested
+  the natural key.
+
+> No, I would like to look at the data. Tell me again how I do that in duckdb.
+  Or would you recommend a different way, such as a web page.  I know I could
+  look at the files using Excel, but I am wondering how I could put a small
+  browse utility in here, if one is appropriate given that duckdb could be
+  queried.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● You don't need to build anything. DuckDB 1.5.6 comes with a browser-based SQL
+  notebook, the DuckDB UI, which is the browse tool you're describing. A
+  home-made web page would just be more code to maintain and explain in the
+  interview, and it would do less than the UI does.
+
+  Option 1: the DuckDB UI (recommended)
+
+  In the project folder, run:
+  duckdb -ui
+  A page opens at http://localhost:4213. In the first cell, attach the database
+  read-only:
+  ATTACH 'data/wprdc.duckdb' AS wprdc (READ_ONLY);
+  USE wprdc;
+  Read-only matters. DuckDB lets only one process write to the file at a time,
+  so if the UI opened it read-write, python -m wprdc.ingest and load_raw would
+  fail while the UI is running.
+
+  The UI gives you:
+  - a table browser in the left sidebar
+  - column summaries for each result (value distributions, null counts)
+  - notebook cells you can save
+
+  Two things to know:
+  - The first launch installs the ui extension from the internet.
+  - The page's interface is served from DuckDB's (MotherDuck's) site, but
+    queries run and data stays on your machine.
+
+  Option 2: the plain CLI
+
+  duckdb -readonly data/wprdc.duckdb
+  Then, at the D prompt:
+  .mode box
+  .maxrows 50
+  SUMMARIZE raw.property_sales_latest;           -- every column: min/max,
+  distinct count, null %
+  SELECT * FROM raw.property_sales_latest LIMIT 20;
+  Type .quit to exit.
+
+  What's in the database
+
+  ┌────────────────────────────────────────────┬────────────────────────────┐
+  │                   Object                   │         What it is         │
+  ├────────────────────────────────────────────┼────────────────────────────┤
+  │ raw.property_sales_latest                  │ Today's snapshot (506,726  │
+  │                                            │ rows). Start here.         │
+  ├────────────────────────────────────────────┼────────────────────────────┤
+  │ raw.property_sales                         │ All snapshots. Filter with │
+  │                                            │  WHERE snapshot_id = ....  │
+  ├────────────────────────────────────────────┼────────────────────────────┤
+  │                                            │ Snapshot list and the      │
+  │ raw.v_snapshots, raw.v_snapshot_changes    │ differences between        │
+  │                                            │ snapshots.                 │
+  ├────────────────────────────────────────────┼────────────────────────────┤
+  │ ops.v_request_outcomes,                    │                            │
+  │ ops.v_failure_breakdown,                   │ The fetch logging.         │
+  │ ops.v_reliability_by_hour                  │                            │
+  └────────────────────────────────────────────┴────────────────────────────┘
+
+  Every source column is stored as text, because the raw layer keeps values
+  exactly as they arrive. To do arithmetic, convert first, e.g. TRY_CAST(PRICE
+  AS INTEGER). Converting the types is the cleaned layer's job.
+
+  Here are a few queries that bear on choosing a question:
+  -- What kinds of sales are there?  ($1 transfers, multi-parcel sales, etc.)
+  SELECT SALECODE, SALEDESC, count(*) n FROM raw.property_sales_latest GROUP BY
+  ALL ORDER BY n DESC;
+
+  -- Sales by municipality
+  SELECT MUNIDESC, count(*) n, median(TRY_CAST(PRICE AS INTEGER)) median_price
+  FROM raw.property_sales_latest GROUP BY ALL ORDER BY n DESC;
+
+  -- Gap between the sale date and the date the deed was recorded
+  SELECT date_diff('day', TRY_CAST(SALEDATE AS DATE), TRY_CAST(RECORDDATE AS
+  DATE)) gap_days, count(*)
+  FROM raw.property_sales_latest GROUP BY ALL ORDER BY 2 DESC LIMIT 20;
+
+  If some exploration queries turn out to be worth keeping, we could save them
+  as sql/explore.sql. That gives reviewers a short, readable record of how you
+  looked at the data, without adding a browse tool to the repository.
+
+> run the load_raw
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● It printed nothing to load, which is what should happen. I already ran
+  load_raw earlier, when you said "yes" to loading the new file, so today's CSV
+  is already snapshot #2. load_raw only loads archived files that aren't in the
+  database yet, so running it again changed nothing.
+
+  That's the exercise's "running it twice must not duplicate or corrupt data"
+  requirement working on real data, and it's worth a line in the README.
+
+  The database is up to date with 2 snapshots: Oct 26 (506,425 rows) and Oct 28
+  (506,726 rows). It's ready for you to explore in the DuckDB UI or the CLI.
