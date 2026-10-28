@@ -99,6 +99,10 @@ README's "what surprised me" section and the data quality checks.
   can't be used as a key.
 - **`RECORDDATE` contains `0212-08-01`** (presumably a typo for 2012) **and dates in
   the future.**
+- **WPRDC's refresh leaves unchanged rows alone.** Between the Oct 26 and Oct 28
+  snapshots (506,425 → 506,726 rows), only 507 row versions were added and 206
+  removed. The other ~506,000 rows hash identically despite the new `_id` values,
+  so comparing snapshots by row hash finds only the rows that really changed.
 
 ## How the AI's work was verified
 
