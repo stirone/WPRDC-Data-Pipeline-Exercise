@@ -29,7 +29,7 @@ specific cases. I am prepared to walk through and defend any part of the code li
 |---|---|---|---|
 | 2026-10-?? | Claude.ai | Dataset exploration; first logging-schema idea | _link to shared conversation_ |
 | 2026-10-26 | Claude Code #1 | Fetch logging, raw landing, raw snapshots, DuckDB version pin, row hashes | [`ai-sessions/2026-10-26-ingest-and-raw-layer.txt`](ai-sessions/2026-10-26-ingest-and-raw-layer.txt) |
-| 2026-10-28 | Claude Code #2 | Status review; second snapshot (+507 / −206 row versions, unchanged rows not rewritten); why a run makes 3 requests; re-run check; DuckDB UI for browsing | [`ai-sessions/2026-10-28-182057-where-are-we-on-this-project.txt`](ai-sessions/2026-10-28-182057-where-are-we-on-this-project.txt) |
+| 2026-10-28 | Claude Code #2 | Status review; second snapshot (+507 / −206 row versions, unchanged rows not rewritten); why a run makes 3 requests; re-run check; DuckDB UI for browsing; natural key investigation; data quality design (quarantine vs. flag, steward's issue list, rate-jump alerts, key collisions don't fail runs), plan, implementation and review fixes | [`ai-sessions/2026-10-28-220407-where-are-we-on-this-project.txt`](ai-sessions/2026-10-28-220407-where-are-we-on-this-project.txt) |
 
 ## Decisions I made
 
