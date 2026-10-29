@@ -56,6 +56,28 @@ specific cases. I am prepared to walk through and defend any part of the code li
   over a compatibility setting I would have to explain.
 - **Fixed failed fetches leaving files with no record,** and backfilled the one
   orphaned CSV from the logs, so every file in the archive traces back to a run.
+- **Data quality has two audiences.** The data steward works a list of flagged
+  records at their own discretion, with no email. I, as the data engineer, get an
+  immediate email (designed, not yet built) when a check's failure rate jumps,
+  because that usually means something changed upstream.
+- **Flag by default; quarantine only impossible values.** Records are held out of
+  the clean table only for dates before 2012 (sale or record) and record dates
+  after the download date. "Recorded before the sale" is flagged, not quarantined,
+  after Claude pointed out that corrective deeds and the county's own
+  `RECORD YR <> SALE YR` code make some of those legitimate.
+- **Missing record dates are quarantined, with misgivings.** Most of the 1,248 are
+  mobile home sales and other instruments that may never be recorded. I want the
+  data steward's view before deciding; switching to a flag is a one-word change.
+- **"In the future" means after the download date,** so rebuilding an old snapshot
+  gives the same answer as the original run.
+- **Fixes happen in the source system.** The pipeline records that an issue was
+  resolved and when, as fixed, replaced, removed or rule changed. I dropped "who
+  fixed it" as out of reach for now.
+- **Only the engineer changes checks, in code,** reviewed through git. I expect
+  the data steward and me to work on the rules together.
+- **Kept the row hash** after asking whether it was needed. It is not required for
+  correctness, but it makes snapshot comparison cheap and is the natural answer
+  at 100x scale.
 
 ## Where I questioned or corrected the AI
 
@@ -72,6 +94,21 @@ specific cases. I am prepared to walk through and defend any part of the code li
 - **Incremental loading.** My idea of hashing every column except `_id` led to the
   key clarification: hashing makes the *load* incremental, not the *download*. A
   full download is still needed to detect deletions.
+
+- **"Are we really using that natural key?"** Claude had been calling
+  `PARID + DEEDBOOK + DEEDPAGE + SALEDATE` the key. Nothing used it yet, and on a
+  closer look it was only unique because placeholder deed numbers are spelled
+  differently (`0`, `00`, `000`). That led to the `possible_duplicate` check.
+- **"How do we know this was resolved, if the record disappears?"** Claude's
+  first answer treated a vanished flagged record as fixed. A deletion looks the
+  same, so resolutions now distinguish fixed, replaced (linked to the new record)
+  and removed.
+- **Key uniqueness should not stop the pipeline.** The design had a duplicate key
+  fail the run. I objected that the key is a guess from two snapshots two days
+  apart, and a wrong guess would leave us dead in the water. A collision now
+  flags the records and alerts me; only structural problems fail a run.
+- **The checks serve the data steward, not me.** I corrected Claude's assumption
+  that the flagged-record list was for the engineer.
 
 ## AI mistakes caught during the work
 
