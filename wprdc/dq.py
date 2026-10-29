@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import duckdb
 
-from wprdc.checks import Check
+from wprdc.checks import ALERT_MIN_INCREASE, ALERT_RATE_FACTOR, Check
 from wprdc.db import utcnow
 from wprdc.transform import TYPED, EvalPoint
 
@@ -139,4 +139,82 @@ def retire_issues(con: duckdb.DuckDBPyConnection, eval_id: int, check: Check) ->
 
 def detect_alerts(con: duckdb.DuckDBPyConnection, run_id: str, eval_id: int,
                   check: Check) -> list[dict]:
-    return []
+    """Compare this evaluation with the check's previous one; record any alert.
+
+    rate_jump           same version, rate > ALERT_RATE_FACTOR x previous and
+                        at least ALERT_MIN_INCREASE more failures
+    key_collision       alert="any" checks: first failure after zero (or ever)
+    definition_changed  the version differs from the previous evaluation's;
+                        a notice, and the rate baseline restarts
+    """
+    cur = con.execute(
+        """SELECT c.n_failing, c.rate, e.snapshot_id, e.as_of
+           FROM dq.check_run c JOIN dq.evaluation e USING (eval_id)
+           WHERE c.eval_id = ? AND c.check_id = ? AND c.check_version = ?""",
+        [eval_id, check.id, check.version]).fetchone()
+    n, rate, snapshot_id, as_of = cur
+    # Earlier evaluations, or this one at another version (evaluated before now).
+    prev = con.execute(
+        """SELECT c.check_version, c.n_failing, c.rate, e.snapshot_id
+           FROM dq.check_run c JOIN dq.evaluation e USING (eval_id)
+           WHERE c.check_id = ? AND NOT (c.eval_id = ? AND c.check_version = ?)
+             AND (e.as_of < ? OR c.eval_id = ?)
+           ORDER BY e.as_of DESC, c.eval_id DESC LIMIT 1""",
+        [check.id, eval_id, check.version, as_of, eval_id]).fetchone()
+    prev_version, prev_n, prev_rate, prev_snapshot = prev or (None, None, None, None)
+
+    where = f"(snapshot {snapshot_id[:8]}, {as_of:%Y-%m-%d})"
+    kind = None
+    if prev is not None and prev_version != check.version:
+        kind = "definition_changed"
+        subject = f"[WPRDC DQ NOTICE] {check.id} definition changed {where}"
+    elif check.alert == "any":
+        if n > 0 and (prev is None or prev_n == 0):
+            kind = "key_collision"
+            subject = f"[WPRDC DQ ALERT] {check.id}: {n} records share a key {where}"
+    elif (prev is not None and rate > ALERT_RATE_FACTOR * prev_rate
+          and n - prev_n >= ALERT_MIN_INCREASE):
+        kind = "rate_jump"
+        subject = f"[WPRDC DQ ALERT] {check.id}: {prev_rate:.2%} -> {rate:.2%} {where}"
+    if kind is None:
+        return []
+
+    def fmt(count, r):
+        return "none" if count is None else f"{count:,} ({r:.2%})"
+    body = "\n".join([
+        f"Check:     {check.id} ({check.description}), action {check.action}, version {check.version}",
+        f"Previous:  {fmt(prev_n, prev_rate)} in snapshot {prev_snapshot or '-'}",
+        f"Now:       {fmt(n, rate)} in snapshot {snapshot_id}, fetched {as_of:%Y-%m-%d %H:%M} UTC",
+        "Failures:",
+        f"  SELECT * FROM dq.check_result WHERE eval_id = {eval_id} "
+        f"AND check_id = '{check.id}' AND check_version = '{check.version}';",
+    ])
+    inserted = con.execute(
+        """INSERT INTO dq.alert (created_at, run_id, eval_id, snapshot_id, check_id, check_version,
+                                 kind, previous_rate, new_rate, previous_n, new_n, subject, body)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT DO NOTHING
+           RETURNING *""",
+        [utcnow(), run_id, eval_id, snapshot_id, check.id, check.version, kind,
+         prev_rate, rate, prev_n if prev is not None else (0 if kind == "key_collision" else None),
+         n, subject, body])
+    return _dicts(inserted)
+
+
+def _dicts(cursor) -> list[dict]:
+    cols = [d[0] for d in cursor.description]
+    return [dict(zip(cols, row)) for row in cursor.fetchall()]
+
+
+def pending_alerts(con: duckdb.DuckDBPyConnection) -> list[dict]:
+    return _dicts(con.execute("SELECT * FROM dq.alert WHERE notified_at IS NULL ORDER BY alert_id"))
+
+
+def notify(alert: dict) -> None:
+    """Tell the engineer. Prints for now; an email version (SMTP settings from
+    environment variables, subject as given) replaces only this function."""
+    print(f"\n{alert['subject']}\n{alert['body']}\n")
+
+
+def mark_notified(con: duckdb.DuckDBPyConnection, alert_id: int) -> None:
+    con.execute("UPDATE dq.alert SET notified_at = ? WHERE alert_id = ?", [utcnow(), alert_id])
