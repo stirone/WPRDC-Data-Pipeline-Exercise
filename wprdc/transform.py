@@ -80,12 +80,17 @@ TEXT_COLUMNS = {
 def build_typed(con: duckdb.DuckDBPyConnection) -> EvalPoint:
     """(Re)build clean.property_sales_typed from the latest snapshot."""
     latest = con.execute(
-        """SELECT snapshot_id, last_fetched_at, CAST(first_fetched_at AS DATE), row_count
-           FROM raw.v_snapshots WHERE pruned_at IS NULL
+        """SELECT snapshot_id, last_fetched_at, CAST(first_fetched_at AS DATE), row_count, pruned_at
+           FROM raw.v_snapshots
            ORDER BY last_fetched_at DESC LIMIT 1""").fetchone()
     if latest is None:
         raise TransformError("no raw snapshot loaded; run python -m wprdc.load_raw first")
-    point = EvalPoint(*latest)
+    if latest[4] is not None:
+        # The source went back to a snapshot whose rows were pruned. Never fall
+        # back to an older snapshot: the clean table would silently be stale.
+        raise TransformError(f"latest snapshot {latest[0][:12]} has been pruned; "
+                             "run python -m wprdc.load_raw --rebuild")
+    point = EvalPoint(*latest[:4])
     text_cols = ",\n            ".join(f"{_text(src)} AS {dst}" for src, dst in TEXT_COLUMNS.items())
     con.execute(
         f"""

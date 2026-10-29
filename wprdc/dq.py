@@ -37,6 +37,10 @@ def evaluate(con: duckdb.DuckDBPyConnection, run_id: str, point: EvalPoint,
             "SELECT 1 FROM dq.check_run WHERE eval_id = ? AND check_id = ? AND check_version = ?",
             [eval_id, check.id, check.version]).fetchone()
         if done:
+            # Results exist, but the issue list may have moved on (the rule was
+            # edited and reverted, the check un-retired, or its action changed);
+            # update_issues is idempotent, so bring the list back in line.
+            update_issues(con, eval_id, check)
             continue
         con.execute(
             f"""INSERT INTO dq.check_result
@@ -159,8 +163,8 @@ def detect_alerts(con: duckdb.DuckDBPyConnection, run_id: str, eval_id: int,
            FROM dq.check_run c JOIN dq.evaluation e USING (eval_id)
            WHERE c.check_id = ? AND NOT (c.eval_id = ? AND c.check_version = ?)
              AND (e.as_of < ? OR c.eval_id = ?)
-           ORDER BY e.as_of DESC, c.eval_id DESC LIMIT 1""",
-        [check.id, eval_id, check.version, as_of, eval_id]).fetchone()
+           ORDER BY e.as_of DESC, c.eval_id DESC, (c.check_version = ?) DESC LIMIT 1""",
+        [check.id, eval_id, check.version, as_of, eval_id, check.version]).fetchone()
     prev_version, prev_n, prev_rate, prev_snapshot = prev or (None, None, None, None)
 
     where = f"(snapshot {snapshot_id[:8]}, {as_of:%Y-%m-%d})"
@@ -181,14 +185,22 @@ def detect_alerts(con: duckdb.DuckDBPyConnection, run_id: str, eval_id: int,
 
     def fmt(count, r):
         return "none" if count is None else f"{count:,} ({r:.2%})"
-    body = "\n".join([
+    lines = [
         f"Check:     {check.id} ({check.description}), action {check.action}, version {check.version}",
         f"Previous:  {fmt(prev_n, prev_rate)} in snapshot {prev_snapshot or '-'}",
         f"Now:       {fmt(n, rate)} in snapshot {snapshot_id}, fetched {as_of:%Y-%m-%d %H:%M} UTC",
         "Failures:",
         f"  SELECT * FROM dq.check_result WHERE eval_id = {eval_id} "
         f"AND check_id = '{check.id}' AND check_version = '{check.version}';",
-    ])
+    ]
+    if kind == "key_collision":
+        keys = con.execute(
+            """SELECT DISTINCT PARID, DEEDBOOK, DEEDPAGE, SALEDATE FROM dq.check_result
+               WHERE eval_id = ? AND check_id = ? AND check_version = ? ORDER BY ALL LIMIT 20""",
+            [eval_id, check.id, check.version]).fetchall()
+        lines += ["Colliding keys (PARID / DEEDBOOK / DEEDPAGE / SALEDATE, first 20):"]
+        lines += ["  " + " / ".join(str(v) for v in key) for key in keys]
+    body = "\n".join(lines)
     inserted = con.execute(
         """INSERT INTO dq.alert (created_at, run_id, eval_id, snapshot_id, check_id, check_version,
                                  kind, previous_rate, new_rate, previous_n, new_n, subject, body)

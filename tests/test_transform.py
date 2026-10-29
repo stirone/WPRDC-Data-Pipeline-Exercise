@@ -105,3 +105,16 @@ def test_main_logs_a_transform_run(tmp_path, monkeypatch, capsys):
     c = duckdb.connect(str(db))
     assert c.execute("SELECT command, status FROM ops.fetch_run").fetchall() == [("transform", "succeeded")]
     c.close()
+
+
+def test_pruned_latest_snapshot_fails_instead_of_falling_back(con):
+    from tests.dq_fixtures import refetch
+    from wprdc.load_raw import prune
+    make_snapshot(con, "A", [sale()], 0)
+    make_snapshot(con, "B", [sale(DEEDPAGE="2")], 1)
+    transform(con, "r1")
+    prune(con, keep=1)                 # A's rows leave the DB; its CSV stays
+    refetch(con, "A", 2)               # the source goes back to A
+    with pytest.raises(TransformError, match="pruned"):
+        transform(con, "r2")
+    assert con.execute(f"SELECT any_value(snapshot_id) FROM {CLEAN}").fetchone() == ("B",)

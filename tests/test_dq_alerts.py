@@ -74,3 +74,19 @@ def test_notify_prints_and_marks(con, capsys):
     out = capsys.readouterr().out
     assert alert["subject"] in out and "dq.check_result" in out
     assert pending_alerts(con) == []
+
+
+def test_key_collision_body_lists_keys(con):
+    snap(con, "s1", [sale(), sale()], 0)
+    body = con.execute("SELECT body FROM dq.alert").fetchone()[0]
+    assert "1010G00075000000 / 18965 / 534 / 2022-06-21" in body
+
+
+def test_previous_run_prefers_current_version_on_same_evaluation(con):
+    changed = [replace(c, where="record_date_text IS NULL OR false") if c.id == "record_date_missing" else c
+               for c in CHECKS]
+    snap(con, "s1", rows(1), 0, checks=changed)     # evaluated at the edited version first
+    evaluate(con, "r", build_typed(con), CHECKS)    # then at the current version, same snapshot
+    snap(con, "s2", rows(12), 1)
+    kinds = [a[0] for a in alerts(con) if a[1] == "record_date_missing"]
+    assert kinds == ["definition_changed", "rate_jump"]

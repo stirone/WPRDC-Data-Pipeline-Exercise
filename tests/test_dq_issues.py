@@ -92,3 +92,17 @@ def test_return_to_earlier_snapshot_reevaluates(con):
     refetch(con, "A", 2)
     evaluate(con, "r", build_typed(con), CHECKS)
     assert [r[:3] for r in issues(con, MISSING)] == [("resolved", "fixed", at(0)), ("open", None, at(2))]
+
+
+def test_rule_edit_then_revert_on_same_snapshot_reopens(con):
+    snap(con, "s1", [sale(RECORDDATE=None)], 0)
+    point = build_typed(con)
+    evaluate(con, "r", point, with_check(MISSING, where="record_date_text IS NULL AND false"))
+    evaluate(con, "r", point, CHECKS)
+    assert [r[:2] for r in issues(con, MISSING)] == [("resolved", "rule_changed"), ("open", None)]
+
+
+def test_action_change_on_same_snapshot_updates_issue(con):
+    snap(con, "s1", [sale(RECORDDATE=None)], 0)
+    evaluate(con, "r", build_typed(con), with_check(MISSING, action="flag"))
+    assert [r[5] for r in issues(con, MISSING)] == ["flag"]
