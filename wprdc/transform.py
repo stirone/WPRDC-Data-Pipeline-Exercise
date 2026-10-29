@@ -3,14 +3,24 @@
     python -m wprdc.transform
 
 clean.property_sales_typed holds every row of the snapshot, typed and trimmed,
-keyed by (PARID, DEEDBOOK, DEEDPAGE, SALEDATE) as delivered.
+keyed by (PARID, DEEDBOOK, DEEDPAGE, SALEDATE) as delivered. The checks in
+wprdc/checks.py run against it; clean.property_sales is the typed rows minus
+quarantined ones, with dq_flags listing the flag checks each row fails.
+
+Everything happens in one transaction: if any step fails, the run is recorded
+as failed and the previous clean table stays. Alerts are sent after commit.
+Re-running on an already-evaluated snapshot changes nothing.
 """
 from __future__ import annotations
 
+import argparse
 from datetime import date, datetime
 from typing import NamedTuple
 
 import duckdb
+
+from wprdc.checks import CHECKS, Check
+from wprdc.db import connect, run_context
 
 TYPED = "clean.property_sales_typed"
 CLEAN = "clean.property_sales"
@@ -99,3 +109,71 @@ def build_typed(con: duckdb.DuckDBPyConnection) -> EvalPoint:
     if n != point.n_rows:
         raise TransformError(f"snapshot {point.snapshot_id[:12]}: typed {n} rows, catalog says {point.n_rows}")
     return point
+
+
+def build_clean(con: duckdb.DuckDBPyConnection, eval_id: int, checks: list[Check]) -> int:
+    """(Re)build clean.property_sales from the typed table and eval_id's results.
+
+    Quarantine is per row (source_row_number), not per key, so a key collision
+    never drops a row that passes. Actions come from `checks` as defined now.
+    """
+    from wprdc.dq import current_results  # dq imports this module
+
+    con.execute(
+        f"""
+        CREATE OR REPLACE TABLE {CLEAN} AS
+        WITH cur AS ({current_results(eval_id, checks)}),
+        flags AS (
+            SELECT source_row_number, list(check_id ORDER BY check_id) AS dq_flags
+            FROM cur WHERE action = 'flag' GROUP BY 1
+        )
+        SELECT t.*, coalesce(f.dq_flags, []::VARCHAR[]) AS dq_flags
+        FROM {TYPED} t
+        LEFT JOIN flags f USING (source_row_number)
+        WHERE t.source_row_number NOT IN (SELECT source_row_number FROM cur WHERE action = 'quarantine')
+        ORDER BY t.source_row_number
+        """)
+    return con.execute(f"SELECT count(*) FROM {CLEAN}").fetchone()[0]
+
+
+def transform(con: duckdb.DuckDBPyConnection, run_id: str, checks: list[Check] = CHECKS) -> dict:
+    from wprdc.dq import evaluate, mark_notified, notify, pending_alerts
+
+    con.begin()
+    try:
+        point = build_typed(con)
+        eval_id = evaluate(con, run_id, point, checks)
+        n_clean = build_clean(con, eval_id, checks)
+        con.commit()
+    except BaseException:
+        con.rollback()
+        raise
+    alerts = pending_alerts(con)
+    for alert in alerts:
+        notify(alert)
+        mark_notified(con, alert["alert_id"])
+    return {"eval_id": eval_id, "snapshot_id": point.snapshot_id, "n_rows": point.n_rows,
+            "n_clean": n_clean, "alerts": alerts}
+
+
+def main(argv: list[str] | None = None) -> None:
+    argparse.ArgumentParser(description=__doc__.splitlines()[0]).parse_args(argv)
+    con = connect()
+    try:
+        with run_context(con, "transform") as run_id:
+            result = transform(con, run_id)
+        counts = dict(con.execute(
+            "SELECT check_id || ':' || check_version, n_failing FROM dq.check_run WHERE eval_id = ?",
+            [result["eval_id"]]).fetchall())
+        print(f"snapshot {result['snapshot_id'][:12]}: {result['n_rows']:,} rows, "
+              f"{result['n_clean']:,} in {CLEAN}")
+        for check in CHECKS:
+            if not check.retired:
+                print(f"  {check.id:<22} {check.action:<10} {counts.get(f'{check.id}:{check.version}', 0):>8,}")
+        print(f"alerts: {len(result['alerts'])}")
+    finally:
+        con.close()
+
+
+if __name__ == "__main__":
+    main()
