@@ -72,11 +72,69 @@ def current_results(eval_id: int, checks: list[Check]) -> str:
 
 
 def update_issues(con: duckdb.DuckDBPyConnection, eval_id: int, check: Check) -> None:
-    pass
+    """Open, carry forward and resolve this check's issues for one evaluation.
+
+    An issue that stops failing is resolved with the outcome decided now, while
+    this snapshot is in clean.property_sales_typed:
+      rule_changed  record still present, but the check's version changed
+      fixed         record still present and passes
+      replaced      record gone, a record with the same real deed is present
+                    (replaced_by_sale_key named only if exactly one)
+      removed       record gone, no successor
+    """
+    p = {"eval_id": eval_id, "check_id": check.id, "version": check.version, "action": check.action}
+    failing = """(SELECT DISTINCT sale_key FROM dq.check_result
+                  WHERE eval_id = $eval_id AND check_id = $check_id AND check_version = $version)"""
+    con.execute(
+        f"""
+        UPDATE dq.issue SET resolved_eval_id = $eval_id, outcome = s.outcome,
+                            replaced_by_sale_key = s.replaced_by
+        FROM (
+            WITH gone AS (
+                SELECT * FROM dq.issue
+                WHERE check_id = $check_id AND resolved_eval_id IS NULL
+                  AND sale_key NOT IN {failing}
+            ), successors AS (
+                SELECT g.issue_id, count(DISTINCT t.sale_key) AS n, min(t.sale_key) AS sale_key
+                FROM gone g
+                JOIN {TYPED} t ON t.PARID = g.PARID AND t.DEEDBOOK = g.DEEDBOOK AND t.DEEDPAGE = g.DEEDPAGE
+                WHERE g.has_real_deed
+                GROUP BY 1
+            )
+            SELECT g.issue_id,
+                   CASE WHEN g.sale_key IN (SELECT sale_key FROM {TYPED}) AND g.check_version <> $version
+                             THEN 'rule_changed'
+                        WHEN g.sale_key IN (SELECT sale_key FROM {TYPED}) THEN 'fixed'
+                        WHEN s.n > 0 THEN 'replaced'
+                        ELSE 'removed' END AS outcome,
+                   CASE WHEN g.sale_key NOT IN (SELECT sale_key FROM {TYPED}) AND s.n = 1
+                        THEN s.sale_key END AS replaced_by
+            FROM gone g LEFT JOIN successors s USING (issue_id)
+        ) s
+        WHERE dq.issue.issue_id = s.issue_id
+        """, {k: v for k, v in p.items() if k != "action"})
+    con.execute(
+        f"""UPDATE dq.issue SET last_seen_eval_id = $eval_id, check_version = $version, action = $action
+            WHERE check_id = $check_id AND resolved_eval_id IS NULL AND sale_key IN {failing}""", p)
+    con.execute(
+        f"""
+        INSERT INTO dq.issue (check_id, check_version, action, sale_key, PARID, DEEDBOOK, DEEDPAGE,
+                              SALEDATE, has_real_deed, first_seen_eval_id, last_seen_eval_id)
+        SELECT $check_id, $version, $action, t.sale_key, any_value(t.PARID), any_value(t.DEEDBOOK),
+               any_value(t.DEEDPAGE), any_value(t.SALEDATE), bool_or(t.has_real_deed), $eval_id, $eval_id
+        FROM {TYPED} t
+        WHERE t.sale_key IN {failing}
+          AND t.sale_key NOT IN (SELECT sale_key FROM dq.issue
+                                 WHERE check_id = $check_id AND resolved_eval_id IS NULL)
+        GROUP BY t.sale_key
+        """, p)
 
 
 def retire_issues(con: duckdb.DuckDBPyConnection, eval_id: int, check: Check) -> None:
-    pass
+    """A retired check's open issues close as rule_changed: nobody fixed them."""
+    con.execute(
+        """UPDATE dq.issue SET resolved_eval_id = ?, outcome = 'rule_changed'
+           WHERE check_id = ? AND resolved_eval_id IS NULL""", [eval_id, check.id])
 
 
 def detect_alerts(con: duckdb.DuckDBPyConnection, run_id: str, eval_id: int,
