@@ -1,0 +1,3026 @@
+
+> <browser_instruction># Claude in Chrome browser automation
+
+  You have access to browser automation tools (mcp__claude-in-chrome__*) for
+  interacting with web pages in Chrome. Follow these guidelines for effective
+  browser automation.
+
+  ## Loading deferred tools
+
+  If the mcp__claude-in-chrome__* tools are deferred (must be loaded via
+  ToolSearch before use), load every tool you expect to need in ONE ToolSearch
+  call — the select query accepts a comma-separated list — never one call per
+  tool. Start with the core set:
+
+  ToolSearch with query
+  "select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__naviga
+  te,mcp__claude-in-chrome__computer,mcp__claude-in-chrome__read_page,mcp__clau
+  de-in-chrome__tabs_create_mcp,mcp__claude-in-chrome__tabs_close_mcp"
+
+  Add task-specific tools to the same call when the task obviously needs them:
+  read_console_messages / read_network_requests for debugging, form_input for
+  forms, gif_creator for recordings, javascript_tool for page scripting.
+
+  ## GIF recording
+
+  When performing multi-step browser interactions that the user may want to
+  review or share, use mcp__claude-in-chrome__gif_creator to record them.
+
+  You must ALWAYS:
+  * Capture extra frames before and after taking actions to ensure smooth
+  playback
+  * Name the file meaningfully to help the user identify it later (e.g.,
+  "login_process.gif")
+
+  ## Console log debugging
+
+  You can use mcp__claude-in-chrome__read_console_messages to read console
+  output. Console output may be verbose. If you are looking for specific log
+  entries, use the 'pattern' parameter with a regex-compatible pattern. This
+  filters results efficiently and avoids overwhelming output. For example, use
+  pattern: "[MyApp]" to filter for application-specific logs rather than
+  reading all console output.
+
+  ## Alerts and dialogs
+
+  IMPORTANT: Do not trigger JavaScript alerts, confirms, prompts, or browser
+  modal dialogs through your actions. These browser dialogs block all further
+  browser events and will prevent the extension from receiving any subsequent
+  commands. Instead, when possible, use console.log for debugging and then use
+  the mcp__claude-in-chrome__read_console_messages tool to read those log
+  messages. If a page has dialog-triggering elements:
+  1. Avoid clicking buttons or links that may trigger alerts (e.g., "Delete"
+  buttons with confirmation dialogs)
+  2. If you must interact with such elements, warn the user first that this may
+  interrupt the session
+  3. Use mcp__claude-in-chrome__javascript_tool to check for and dismiss any
+  existing dialogs before proceeding
+
+  If you accidentally trigger a dialog and lose responsiveness, inform the user
+  they need to manually dismiss it in the browser.
+
+  ## Avoid rabbit holes and loops
+
+  When using browser automation tools, stay focused on the specific task. If
+  you encounter any of the following, stop and ask the user for guidance:
+  - Unexpected complexity or tangential browser exploration
+  - Browser tool calls failing or returning errors after 2-3 attempts
+  - No response from the browser extension
+  - Page elements not responding to clicks or input
+  - Pages not loading or timing out
+  - Unable to complete the browser task despite multiple approaches
+
+  Explain what you attempted, what went wrong, and ask how the user would like
+  to proceed. Do not keep retrying the same failing browser action or explore
+  unrelated pages without checking in first.
+
+  ## Tab context and session startup
+
+  IMPORTANT: At the start of each browser automation session, call
+  mcp__claude-in-chrome__tabs_context_mcp first to get information about the
+  user's current browser tabs. Use this context to understand what the user
+  might want to work with before creating new tabs.
+
+  Never reuse tab IDs from a previous/other session. Follow these guidelines:
+  1. Only reuse an existing tab if the user explicitly asks to work with it
+  2. Otherwise, create a new tab with mcp__claude-in-chrome__tabs_create_mcp
+  3. If a tool returns an error indicating the tab doesn't exist or is invalid,
+  call tabs_context_mcp to get fresh tab IDs
+  4. When a tab is closed by the user or a navigation error occurs, call
+  tabs_context_mcp to see what tabs are available</browser_instruction>
+
+> Where are we on this project?
+
+  Ran 5 shell commands (ctrl+o to expand)
+
+● Reading the last session's notes. One more quick check, on the database state
+  and whether the analytical question was ever chosen.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Where things stand (Oct 28; due Nov 2, 11:00 am, so about 5 days left)
+
+  You're building the Property Sale Transactions pipeline for the Allegheny
+  County Senior Data Engineer exercise. Everything is committed and pushed to
+  GitHub. The repository is still private.
+
+  Done (the first session, Oct 26)
+
+  - Logged ingest: a requests-based CKAN client that records every run, attempt
+    and resource in ops.*. It sorts responses into categories like empty_body
+    and non_json based on what actually came back, and the tests include a
+    replay of the real blank → HTML → JSON failure.
+  - Raw layer: every downloaded CSV is kept as the permanent archive.
+    raw.property_sales stores full snapshots with row hashes, and there are
+    views for the latest snapshot and for changes between snapshots. The raw
+    tables can be pruned and rebuilt from the archive.
+  - Environment: DuckDB is pinned to 1.5.6 so the Python library matches the
+    CLI, and pytz is pinned too.
+  - docs/AI_USAGE.md and the session transcript are written.
+
+  Requirements still to do
+
+  1. Choose the analytical question. This was left open last session and it
+     blocks the cleaned table. Candidates raised then: how sale codes like $1
+     and multi-parcel sales are handled, breakdowns by municipality, and the gap
+     between the sale date and the date the deed was recorded.
+  2. Cleaned/modeled layer: proper types, trimmed text, and a natural key. _id
+     can't be the key because it changes on every refresh; the candidate is
+     PARID + DEEDBOOK + DEEDPAGE, which still needs testing.
+  3. Data quality checks that fail on bad data. They need at least one check
+     based on something found in this dataset. The RECORDDATE value 0212-08-01
+     and the future dates are ready-made examples.
+  4. The output table that answers the question.
+  5. A single python -m wprdc.pipeline command that runs everything as one
+     logged run.
+  6. README.md. It's still a one-line placeholder. It needs the three main
+     design decisions and the alternatives rejected, the surprises in the data,
+     what changes at 100x scale or with daily refreshes, and what was left out.
+     Most of the material is already in AI_USAGE.md.
+
+  Loose ends
+
+  - The second snapshot was never taken. The database has only one snapshot,
+    from Oct 26, so v_snapshot_changes has nothing to compare yet. Running
+    python -m wprdc.ingest and then python -m wprdc.load_raw today would fix
+    that. It would also show whether WPRDC's daily rebuild changes the row
+    order.
+  - The Claude.ai row in AI_USAGE.md still needs its date and share link.
+  - The committed transcript includes the full hiring email, with the Deputy
+    CIO's name and signature. That's fine while the repository is private, but
+    decide before you make it public whether to replace it with a summary.
+  - Making the repository public needs to happen before you email your
+    submission.
+
+  I'd suggest starting by taking today's snapshot, then choosing the question so
+  the cleaned layer and the checks can be built around it. Want me to run the
+  ingest now and suggest some questions based on the data?
+
+> ! python -m wprdc.ingest
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+● Your ! command's output didn't reach me, so I ran the ingest myself. The
+  archive has only one new file, so it didn't download twice.
+
+  The ingest worked and found a new version of the dataset.
+  - It made 3 requests and all came back ok (HTTP 200), with none of the blank
+    or HTML responses this time.
+  - It saved 506,726 rows (109 MB) to
+    data/raw/real-estate-sales/.../dump/20261028T215221Z_96a8849e.csv.
+  - That's 301 more rows than the Oct 26 snapshot (506,425), so WPRDC has
+    refreshed the data since then.
+
+  The new file isn't in the database yet. Running python -m wprdc.load_raw loads
+  it as snapshot #2. Then v_snapshot_changes will show how many rows were
+  added, changed or deleted. It will also show whether the daily rebuild rewrote
+  rows that didn't actually change. Want me to run it?
+
+> yes.  why did it make 3 requests?  is that the normal number of requests?
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+● Snapshot #2 is loaded. To answer your question: 3 requests is normal for a run
+  that downloads.
+
+  What the 3 requests are (from ops.fetch_attempt for today's run):
+
+  #: 1
+  Request: package_show?id=real-estate-sales
+  Why: Gets the dataset's metadata, including the resource's last_modified. The
+  pipeline compares that with the last successful fetch to decide whether to
+  download at all.
+  Time: 421 ms
+  ────────────────────────────────────────
+  #: 2
+  Request: datastore_search?limit=0
+  Why: Returns no rows, only the total row count. That count is recorded, so the
+
+  downloaded file can be checked against it.
+  Time: 89 ms
+  ────────────────────────────────────────
+  #: 3
+  Request: datastore/dump/...
+  Why: Downloads the full CSV.
+  Time: 3.1 s, 109 MB
+
+  Request counts from every run so far:
+  - 3 requests when the data has changed: metadata, count, download. Today's run
+    was one of these.
+  - 1 request when the data is unchanged. package_show shows the same
+    last_modified, so the run stops there. Two runs on Oct 26 did this.
+  - More than 3 when retries happen. Your first run on Oct 26 made 6 requests, 3
+    of which failed (the shaky behavior you saw). Each retry is logged as its
+    own row.
+
+  That makes the request count a quick health check: anything above 3 means
+  WPRDC had problems during that run.
+
+  What changed between Oct 26 and today (raw.v_snapshot_changes):
+  - 506,425 → 506,726 rows, a net gain of 301.
+  - 507 row versions are new and 206 are gone. The comparison uses row hashes,
+    so a record that was edited counts as one removed and one added. Some of the
+    206 are probably corrections rather than real deletions.
+  - This answers last session's open question: WPRDC's daily rebuild did not
+    rewrite unchanged rows. All 506,000 or so other rows hash the same as
+    before. So comparing snapshots reliably picks out the rows that really
+    changed, and "how I'd handle updates" in the README now has real evidence
+    behind it.
+
+  Next comes choosing the analytical question, which shapes the cleaned table.
+  Want me to look at the data and suggest a few candidates? I could also break
+  down the 206 removed rows into edits versus real deletions once we've tested
+  the natural key.
+
+> No, I would like to look at the data. Tell me again how I do that in duckdb.
+  Or would you recommend a different way, such as a web page.  I know I could
+  look at the files using Excel, but I am wondering how I could put a small
+  browse utility in here, if one is appropriate given that duckdb could be
+  queried.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● You don't need to build anything. DuckDB 1.5.6 comes with a browser-based SQL
+  notebook, the DuckDB UI, which is the browse tool you're describing. A
+  home-made web page would just be more code to maintain and explain in the
+  interview, and it would do less than the UI does.
+
+  Option 1: the DuckDB UI (recommended)
+
+  In the project folder, run:
+  duckdb -ui
+  A page opens at http://localhost:4213. In the first cell, attach the database
+  read-only:
+  ATTACH 'data/wprdc.duckdb' AS wprdc (READ_ONLY);
+  USE wprdc;
+  Read-only matters. DuckDB lets only one process write to the file at a time,
+  so if the UI opened it read-write, python -m wprdc.ingest and load_raw would
+  fail while the UI is running.
+
+  The UI gives you:
+  - a table browser in the left sidebar
+  - column summaries for each result (value distributions, null counts)
+  - notebook cells you can save
+
+  Two things to know:
+  - The first launch installs the ui extension from the internet.
+  - The page's interface is served from DuckDB's (MotherDuck's) site, but
+    queries run and data stays on your machine.
+
+  Option 2: the plain CLI
+
+  duckdb -readonly data/wprdc.duckdb
+  Then, at the D prompt:
+  .mode box
+  .maxrows 50
+  SUMMARIZE raw.property_sales_latest;           -- every column: min/max,
+  distinct count, null %
+  SELECT * FROM raw.property_sales_latest LIMIT 20;
+  Type .quit to exit.
+
+  What's in the database
+
+  ┌────────────────────────────────────────────┬────────────────────────────┐
+  │                   Object                   │         What it is         │
+  ├────────────────────────────────────────────┼────────────────────────────┤
+  │ raw.property_sales_latest                  │ Today's snapshot (506,726  │
+  │                                            │ rows). Start here.         │
+  ├────────────────────────────────────────────┼────────────────────────────┤
+  │ raw.property_sales                         │ All snapshots. Filter with │
+  │                                            │  WHERE snapshot_id = ....  │
+  ├────────────────────────────────────────────┼────────────────────────────┤
+  │                                            │ Snapshot list and the      │
+  │ raw.v_snapshots, raw.v_snapshot_changes    │ differences between        │
+  │                                            │ snapshots.                 │
+  ├────────────────────────────────────────────┼────────────────────────────┤
+  │ ops.v_request_outcomes,                    │                            │
+  │ ops.v_failure_breakdown,                   │ The fetch logging.         │
+  │ ops.v_reliability_by_hour                  │                            │
+  └────────────────────────────────────────────┴────────────────────────────┘
+
+  Every source column is stored as text, because the raw layer keeps values
+  exactly as they arrive. To do arithmetic, convert first, e.g. TRY_CAST(PRICE
+  AS INTEGER). Converting the types is the cleaned layer's job.
+
+  Here are a few queries that bear on choosing a question:
+  -- What kinds of sales are there?  ($1 transfers, multi-parcel sales, etc.)
+  SELECT SALECODE, SALEDESC, count(*) n FROM raw.property_sales_latest GROUP BY
+  ALL ORDER BY n DESC;
+
+  -- Sales by municipality
+  SELECT MUNIDESC, count(*) n, median(TRY_CAST(PRICE AS INTEGER)) median_price
+  FROM raw.property_sales_latest GROUP BY ALL ORDER BY n DESC;
+
+  -- Gap between the sale date and the date the deed was recorded
+  SELECT date_diff('day', TRY_CAST(SALEDATE AS DATE), TRY_CAST(RECORDDATE AS
+  DATE)) gap_days, count(*)
+  FROM raw.property_sales_latest GROUP BY ALL ORDER BY 2 DESC LIMIT 20;
+
+  If some exploration queries turn out to be worth keeping, we could save them
+  as sql/explore.sql. That gives reviewers a short, readable record of how you
+  looked at the data, without adding a browse tool to the repository.
+
+> run the load_raw
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● It printed nothing to load, which is what should happen. I already ran
+  load_raw earlier, when you said "yes" to loading the new file, so today's CSV
+  is already snapshot #2. load_raw only loads archived files that aren't in the
+  database yet, so running it again changed nothing.
+
+  That's the exercise's "running it twice must not duplicate or corrupt data"
+  requirement working on real data, and it's worth a line in the README.
+
+  The database is up to date with 2 snapshots: Oct 26 (506,425 rows) and Oct 28
+  (506,726 rows). It's ready for you to explore in the DuckDB UI or the CLI.
+
+> <ide_opened_file>The user opened the file
+  c:\Users\steph\job-search\WPRDC-Data-Pipeline-Exercise\docs\ai-sessions\2026-
+  10-28-182057-where-are-we-on-this-project.txt in the IDE. This may or may not
+  be related to the current task.</ide_opened_file>
+
+> I just exported this conversation to the ai_sessions folder here. commit that
+  and push it to my github repo.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● I committed the transcript as 750b683 and pushed it to
+  stirone/WPRDC-Data-Pipeline-Exercise on GitHub. Your local main now matches
+  GitHub.
+
+  I checked the transcript for credentials and for the Deputy CIO's name before
+  committing, and found neither. This session only mentions that the hiring
+  email is in the Oct 26 transcript; it doesn't quote it.
+
+  The session log table in docs/AI_USAGE.md doesn't list this transcript yet.
+  Want me to add a row with today's topics: the second snapshot, the evidence
+  that unchanged rows aren't rewritten, the 3-request explanation, and the
+  re-run check?
+
+> yes
+
+● Update(docs\AI_USAGE.md)
+  ⎿  Added 1 line
+      29  |---|---|---|---|
+      30  | 2026-10-?? | Claude.ai | Dataset exploration; first logging-s
+          chema idea | _link to shared conversation_ |
+      31  | 2026-10-26 | Claude Code #1 | Fetch logging, raw landing, raw
+           snapshots, DuckDB version pin, row hashes | [`ai-sessions/2026
+          -10-26-ingest-and-raw-layer.txt`](ai-sessions/2026-10-26-ingest
+          -and-raw-layer.txt) |
+      32 +| 2026-10-28 | Claude Code #2 | Status review; second snapshot 
+         +(+507 / −206 row versions, unchanged rows not rewritten); why a
+         + run makes 3 requests; re-run check; DuckDB UI for browsing | [
+         +`ai-sessions/2026-10-28-182057-where-are-we-on-this-project.txt
+         +`](ai-sessions/2026-10-28-182057-where-are-we-on-this-project.t
+         +xt) |                                                          
+      33  
+      34  ## Decisions I made
+      35  
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● I added the row to the session log table in docs/AI_USAGE.md, committed it as
+  ec6a0bf, and pushed it to GitHub.
+
+  The new row is dated 2026-10-28 and links to today's transcript. Its topics
+  are the status review, the second snapshot (507 row versions added, 206
+  removed, unchanged rows not rewritten), why a run makes 3 requests, the re-run
+  check, and the DuckDB UI for browsing.
+
+  The "Findings from the investigation" section in the same file doesn't include
+  today's result yet: WPRDC's daily refresh leaves unchanged rows as they are,
+  so comparing snapshots by row hash picks out only the rows that really
+  changed. Want me to add it there? It's evidence for the README's section on
+  handling updates.
+
+> yes
+
+● Update(docs\AI_USAGE.md)
+  ⎿  Added 4 lines
+       99    can't be used as a key.
+      100  - **`RECORDDATE` contains `0212-08-01`** (presumably a typo fo
+           r 2012) **and dates in
+      101    the future.**
+      102 +- **WPRDC's refresh leaves unchanged rows alone.** Between the
+          + Oct 26 and Oct 28                                            
+      103 +  snapshots (506,425 → 506,726 rows), only 507 row versions we
+          +re added and 206                                              
+      104 +  removed. The other ~506,000 rows hash identically despite th
+          +e new `_id` values,                                           
+      105 +  so comparing snapshots by row hash finds only the rows that 
+          +really changed.                                               
+      106  
+      107  ## How the AI's work was verified
+      108  
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● I added the finding to "Findings from the investigation" in docs/AI_USAGE.md,
+  committed it as 952f1fb, and pushed it to GitHub.
+
+  It says that WPRDC's refresh leaves unchanged rows alone. Between the Oct 26
+  and Oct 28 snapshots, 507 row versions were added and 206 removed. The other
+  ~506,000 rows have the same hashes even though their _id values changed, so
+  comparing snapshots by row hash finds only the rows that really changed.
+
+  The next step is still choosing your analytical question once you've looked at
+  the data. When you're ready, the cleaned layer and the quality checks get
+  built around it.
+
+> <browser_instruction># Claude in Chrome browser automation
+
+  You have access to browser automation tools (mcp__claude-in-chrome__*) for
+  interacting with web pages in Chrome. Follow these guidelines for effective
+  browser automation.
+
+  ## Loading deferred tools
+
+  If the mcp__claude-in-chrome__* tools are deferred (must be loaded via
+  ToolSearch before use), load every tool you expect to need in ONE ToolSearch
+  call — the select query accepts a comma-separated list — never one call per
+  tool. Start with the core set:
+
+  ToolSearch with query
+  "select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__naviga
+  te,mcp__claude-in-chrome__computer,mcp__claude-in-chrome__read_page,mcp__clau
+  de-in-chrome__tabs_create_mcp,mcp__claude-in-chrome__tabs_close_mcp"
+
+  Add task-specific tools to the same call when the task obviously needs them:
+  read_console_messages / read_network_requests for debugging, form_input for
+  forms, gif_creator for recordings, javascript_tool for page scripting.
+
+  ## GIF recording
+
+  When performing multi-step browser interactions that the user may want to
+  review or share, use mcp__claude-in-chrome__gif_creator to record them.
+
+  You must ALWAYS:
+  * Capture extra frames before and after taking actions to ensure smooth
+  playback
+  * Name the file meaningfully to help the user identify it later (e.g.,
+  "login_process.gif")
+
+  ## Console log debugging
+
+  You can use mcp__claude-in-chrome__read_console_messages to read console
+  output. Console output may be verbose. If you are looking for specific log
+  entries, use the 'pattern' parameter with a regex-compatible pattern. This
+  filters results efficiently and avoids overwhelming output. For example, use
+  pattern: "[MyApp]" to filter for application-specific logs rather than
+  reading all console output.
+
+  ## Alerts and dialogs
+
+  IMPORTANT: Do not trigger JavaScript alerts, confirms, prompts, or browser
+  modal dialogs through your actions. These browser dialogs block all further
+  browser events and will prevent the extension from receiving any subsequent
+  commands. Instead, when possible, use console.log for debugging and then use
+  the mcp__claude-in-chrome__read_console_messages tool to read those log
+  messages. If a page has dialog-triggering elements:
+  1. Avoid clicking buttons or links that may trigger alerts (e.g., "Delete"
+  buttons with confirmation dialogs)
+  2. If you must interact with such elements, warn the user first that this may
+  interrupt the session
+  3. Use mcp__claude-in-chrome__javascript_tool to check for and dismiss any
+  existing dialogs before proceeding
+
+  If you accidentally trigger a dialog and lose responsiveness, inform the user
+  they need to manually dismiss it in the browser.
+
+  ## Avoid rabbit holes and loops
+
+  When using browser automation tools, stay focused on the specific task. If
+  you encounter any of the following, stop and ask the user for guidance:
+  - Unexpected complexity or tangential browser exploration
+  - Browser tool calls failing or returning errors after 2-3 attempts
+  - No response from the browser extension
+  - Page elements not responding to clicks or input
+  - Pages not loading or timing out
+  - Unable to complete the browser task despite multiple approaches
+
+  Explain what you attempted, what went wrong, and ask how the user would like
+  to proceed. Do not keep retrying the same failing browser action or explore
+  unrelated pages without checking in first.
+
+  ## Tab context and session startup
+
+  IMPORTANT: At the start of each browser automation session, call
+  mcp__claude-in-chrome__tabs_context_mcp first to get information about the
+  user's current browser tabs. Use this context to understand what the user
+  might want to work with before creating new tabs.
+
+  Never reuse tab IDs from a previous/other session. Follow these guidelines:
+  1. Only reuse an existing tab if the user explicitly asks to work with it
+  2. Otherwise, create a new tab with mcp__claude-in-chrome__tabs_create_mcp
+  3. If a tool returns an error indicating the tab doesn't exist or is invalid,
+  call tabs_context_mcp to get fresh tab IDs
+  4. When a tab is closed by the user or a navigation error occurs, call
+  tabs_context_mcp to see what tabs are available</browser_instruction>
+
+> OK, I've explored this data a little bit.  What were you suggesting was the
+  natural key?
+
+● The candidate was PARID + DEEDBOOK + DEEDPAGE: the parcel plus the deed's book
+  and page in the county's deed records. It hadn't been tested yet, so I
+  checked it against today's snapshot.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● The candidate key, PARID + DEEDBOOK + DEEDPAGE, is almost unique. Today's
+  snapshot has 506,726 rows and 506,725 distinct keys. Adding SALEDATE makes it
+  fully unique.
+
+  The one duplicate is a mobile home with no deed recorded:
+
+  ┌──────────────────┬─────────────────────┬────────────┬──────────────────┐
+  │      PARID       │ DEEDBOOK / DEEDPAGE │  SALEDATE  │       Type       │
+  ├──────────────────┼─────────────────────┼────────────┼──────────────────┤
+  │ 8000T04849000000 │ null / null         │ 2019-11-04 │ Mobile Home Sale │
+  ├──────────────────┼─────────────────────┼────────────┼──────────────────┤
+  │ 8000T04849000000 │ null / null         │ 2022-04-29 │ Mobile Home Sale │
+  └──────────────────┴─────────────────────┴────────────┴──────────────────┘
+
+  These are two real sales of the same parcel. Neither has a deed reference, so
+  the book and page can't tell them apart, but the sale date can.
+
+  Deed numbers that aren't real: about 2,800 rows have no usable book and page.
+  546 are null, and the rest are placeholders: 0/0 (957 rows), 00/00 (736) and
+  000/000 (270). These look like stand-ins for "no deed" and should become null
+  in the cleaned layer. A data quality check could also flag them.
+
+  Recommendation: use (PARID, DEEDBOOK, DEEDPAGE, SALEDATE) as the cleaned
+  table's key, with these caveats:
+  - It needs a check. Add a data quality check that fails if the key is ever
+    duplicated. That check also counts as one written because of something found
+    in this dataset: the deedless mobile-home sales.
+  - The key comes from the data, not from the county. It's unique in this
+    snapshot, but nothing guarantees it. The check is what protects it.
+  - A corrected record looks like a new row. If a record's sale date or deed
+    number is corrected, its key changes. Among the 507 added and 206 removed
+    rows from today's comparison, an edit to one of those fields would show up
+    as one removal plus one addition, not as an update.
+
+  One more detail you may have noticed: there are only 313,849 distinct parcels,
+  so many parcels appear more than once. That makes questions about repeat
+  sales or price changes on the same parcel possible.
+
+  What did you see while exploring? Is there a question you're leaning toward?
+
+> Are there any parcels with differences in their full address?
+  Ran 1 shell command (ctrl+o to expand)
+
+● No address inconsistencies found — every parcel's FULL_ADDRESS matches exactly
+  across all its sales, even for the 131,259 parcels sold multiple times. Since
+  that's surprising, I'll check whether other location columns show the same
+  consistency.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● No. Every location column is constant within a parcel, not only FULL_ADDRESS:
+
+  ┌───────────────────────────────────────┬──────────────────────────────────┐
+  │                Column                 │ Parcels with more than one value │
+  ├───────────────────────────────────────┼──────────────────────────────────┤
+  │ FULL_ADDRESS                          │ 0                                │
+  ├───────────────────────────────────────┼──────────────────────────────────┤
+  │ House number, street, unit, city, ZIP │ 0                                │
+  ├───────────────────────────────────────┼──────────────────────────────────┤
+  │ MUNICODE / MUNIDESC                   │ 0                                │
+  ├───────────────────────────────────────┼──────────────────────────────────┤
+  │ SCHOOLCODE / SCHOOLDESC               │ 0                                │
+  └───────────────────────────────────────┴──────────────────────────────────┘
+
+  No parcel's address changed between the Oct 26 and Oct 28 snapshots either.
+
+  What it probably means (an inference, not confirmed): these columns are the
+  parcel's current location, attached to every sale, rather than the address
+  recorded at the time of each sale. Across 131,000 parcels with repeat sales,
+  some going back decades, you'd expect at least a few variations from
+  re-addressing, renamed streets or typing differences if each sale recorded its
+  own address. Zero variations suggests the export joins in the current parcel
+  record. We can't prove it with two snapshots. It would be confirmed if a
+  parcel's address ever changed and every one of its past sales changed with it.
+
+  Why it matters:
+  - For the model: the cleaned layer can split cleanly into a parcel table
+    (PARID → address, municipality, school district) and a sales table (one row
+    per transfer, keyed as discussed). It's a natural star schema, and the data
+    supports it as it stands.
+  - For analysis: "sales by municipality" or "by school district" means by the
+    parcel's current municipality or school district. That rarely matters in
+    Allegheny County, but it's worth one line in the README's caveats.
+  - For data quality: it becomes a check written because of something found in
+    this dataset: each PARID has exactly one location. If that ever fails,
+    either the source changed how it builds the export or the parcel table has a
+    problem. Either way you'd want to know before it reaches the parcel table.
+
+  Do you want to go with the parcel and sales split? It also affects which
+  questions are easy to answer, so it's worth deciding together with the
+  question.
+
+> let's conduct some data quality checks.  let's start with checking the
+  difference between the sale date and the record date.  For one transaction,
+  the difference is very negative.  Would it be proper to assume that the
+  record date would typically be equal to or later than the sale date?
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Yes, that assumption is right. A sale is the transfer of the deed, and
+  recording happens afterwards, when the deed is filed with the county's
+  Department of Real Estate. Recording can happen the same day, but not before
+  the sale. The data supports this:
+
+  ┌──────────────────────────────────┬─────────┐
+  │   Gap (RECORDDATE − SALEDATE)    │  Rows   │
+  ├──────────────────────────────────┼─────────┤
+  │ more than 1 year before the sale │ 18      │
+  ├──────────────────────────────────┼─────────┤
+  │ 31 days – 1 year before          │ 108     │
+  ├──────────────────────────────────┼─────────┤
+  │ 1 – 30 days before               │ 603     │
+  ├──────────────────────────────────┼─────────┤
+  │ same day                         │ 111,505 │
+  ├──────────────────────────────────┼─────────┤
+  │ 1 – 30 days after                │ 339,133 │
+  ├──────────────────────────────────┼─────────┤
+  │ 31 – 90 days after               │ 39,454  │
+  ├──────────────────────────────────┼─────────┤
+  │ 91 days – 1 year after           │ 11,940  │
+  ├──────────────────────────────────┼─────────┤
+  │ more than 1 year after           │ 2,717   │
+  └──────────────────────────────────┴─────────┘
+
+  The median gap is 6 days and 99% of rows are within 221 days. Only 729 rows
+  (0.14%) are recorded before the sale, and 1,248 rows have no RECORDDATE.
+
+  The very negative one is the 0212-08-01 typo: a sheriff sale on 2012-08-01
+  recorded as the year 212, a gap of −657,437 days.
+
+  The others follow recognizable patterns:
+  - Year typos. Several are almost exactly 10 years off, e.g. sale 2018-08-17 /
+    recorded 2008-08-17, and 2016-03-23 / 2006-04-11. Those look like a mistyped
+    digit.
+  - Already flagged by the county. One SALEDESC value reads DATE OF TRANSFER
+    (RECORD YR <> SALE YR), so the source itself knows some of these dates don't
+    line up.
+  - Corrective deeds. A corrective deed re-records an earlier transfer, so its
+    dates can be out of order.
+
+  Another problem nearby: the maximum RECORDDATE is 2026-10-29, and today is Oct
+  28. A recording date can't be in the future, so that's the future-date
+  problem we saw before.
+
+  How I'd turn this into checks. The rows fall into two kinds:
+  1. Impossible values, which fail the pipeline: RECORDDATE before 1900 (the
+     0212 row), or after the date the data was downloaded. These are clearly
+     errors, and a check that fails on them would have caught the typo.
+  2. Implausible values, which are flagged but don't fail: record date before
+     sale date. 729 rows already exist in the source, so a check that fails on
+     any of them would fail every run. Instead, each row gets a flag in the
+     cleaned table, and the check fails only if the rate jumps well above the
+     current ~0.14%, say over 0.5%. A jump like that would mean something
+     changed upstream.
+
+  Does that split work for you: fail on impossible dates, flag implausible ones
+  with a threshold? Also, do you want the flagged rows kept in the output table
+  with the flag column, or set aside in a separate quarantine table?
+
+> I like the idea of checking for impossible and implausible values, but I
+  don't want to quarantine any records, only flag them, and put them into a
+  separate table for people to work as time permits.  And yes, I do want to
+  monitor the rate of these flags, and immediately notify someone when the rate
+  jumps.  How would you recommend we go about implementing this?  I do want to
+  add other data quality checks as well, later.
+
+● Skill(superpowers:brainstorming)
+  ⎿  Successfully loaded skill
+
+● If you'd rather skip my questions and have me propose a design straight away,
+  just say so.
+
+  When the flag rate jumps and someone gets notified, who is that person, and
+  what do you picture them doing with the alert in that moment?
+
+> that would be me (data engineer), and I would expect that I would want to
+  look into the severity of the jump and start finding out if something
+  upstream changed.
+
+● So you're the one who gets the alert, and its job is to get you investigating
+  quickly: how big the jump is, and whether something changed upstream. My guess
+  is that this is why the alert needs to carry context, such as the previous
+  rate next to the new one and which snapshot introduced the new flags, rather
+  than only saying "check failed".
+
+  Where would you want that alert to reach you so that you'd actually see it
+  right away?
+
+> by email, with a notable subject line.  We do not need to implement this
+  here, as primarily I just need to implement some data quality checks for this
+  job application exercise.  But I would like you to include this type of
+  thing in the design you are considering.
+
+● Here's my understanding so far. Tell me what's wrong or missing.
+
+  What the checks are for. They're for you, the data engineer. They should catch
+  bad values in the property sales data and tell you when something upstream
+  seems to have changed. The exercise also needs checks that really fail on bad
+  data, including at least one written because of something found in this
+  dataset. The RECORDDATE problems cover that.
+
+  How flagged records are handled. Nothing is quarantined. Every record stays in
+  the cleaned table, and flagged records are also listed in a separate table
+  that people work through as time allows. Each entry would say which record,
+  which check flagged it and why. That's your requirement. My guess is that the
+  separate table should survive pipeline re-runs, so that a record flagged on
+  Oct 26 is still the same entry on Oct 28 rather than a new one each run.
+
+  Watching flag rates. Each run records the flag rate for each check. When a
+  rate jumps, you get an email with a subject line that stands out. The email
+  should give you what you need to start investigating: the old rate and the new
+  one, the size of the jump, and which snapshot it came from. Email sending
+  goes into the design but isn't built for this exercise. My guess is that the
+  pipeline records the alert and prints it, at the point where the email would
+  later be sent.
+
+  Adding checks later. You want to add more checks, so adding one should be a
+  small, self-contained change.
+
+  The open part is what "impossible" means for a run. I suggested earlier that
+  an impossible value like the year 212 should fail the pipeline, but you've
+  said you want records only flagged. When the pipeline finds an impossible
+  value, should the run fail, or should it finish and just flag the record
+  (perhaps marked as more severe)?
+
+> Correction: the data quality checks are primarily for the data steward, while
+  the checks monitoring the rate of failures should alert me, the data
+  engineer, immediately when the rate jumps.  We might not email the data
+  steward at all, just allow them to browse and work the data quality failure
+  table at their discretion.  You are correct on how flagged records are
+  handled, but I also want to be able to know when a flagged record has been
+  corrected, and who corrected it.  And per your suggestion, I think I need to
+  actually quarantine some records, per the requirements of the job
+  description.  Let's do that for record dates in the future, sale dates before
+  2012, and negative days between the sale and the record date.  Does that
+  make sense?  What other questions do you have before we begin design?
+
+● I've got the correction:
+  - The data steward owns the flagged-record table and works through it when
+    they choose. No email to them.
+  - You get an email right away when a flag rate jumps.
+  - You also want to see when a flagged record was corrected, and who corrected
+    it.
+
+  Your three quarantine rules make sense, with two notes:
+
+  1. "In the future" should mean after the download date, not after the date the
+     pipeline runs. If it meant "after today", rebuilding an old snapshot next
+     month would quarantine different records than the first build did, and
+     rebuilds would stop being repeatable. Today's snapshot has one record date
+     in the future: Oct 29, against an Oct 28 download.
+  2. "Sale date before 2012" catches nothing today. The earliest SALEDATE is
+     exactly 2012-01-01, which looks like a deliberate cutoff in the source.
+     It's still a good check, since it guards an assumption the data relies on,
+     and it would fail if older records ever appeared. Just know it's protecting
+     against future problems rather than catching current ones.
+
+  A trade-off with the negative-gap rule: it quarantines 729 records. Some of
+  these may be genuine, not errors:
+  - Corrective deeds (17 of them) re-record earlier transfers, so their dates
+    can be out of order.
+  - The county's own RECORD YR <> SALE YR sale code marks some of these records
+    as known exceptions.
+  - 603 of the 729 are only 1 to 30 days negative. That looks more like small
+    date-entry differences than serious errors.
+
+  Quarantining them all is a reasonable, conservative choice. You could instead
+  quarantine only gaps beyond some threshold and flag the rest. It's your call.
+  I'll design whichever you choose.
+
+  My first question is about corrections. The cleaned table is rebuilt from
+  WPRDC's data on every refresh. So when a steward corrects a flagged record,
+  where does the fix happen?
+  - In the county's source system. We'd see the fixed record arrive in a later
+    download and could mark it resolved automatically, but we wouldn't know who
+    fixed it.
+  - In our pipeline. The steward records the fix and their name, and it's
+    applied on every rebuild.
+
+> Yes, in the future should mean after the download date.  And while sale date
+  < 2012 is a good check, I really meant checking for invalid dates like that
+  0212 year one.  Invalid dates -- dates that are prior to 2012 in either sale
+  or record -- should be quarantined.  And your points about the negative gap
+  rule are well taken.  Let's not quarantine those, just flag them.  As for
+  fixes, they would have to be fixed in the source system, and let's not get
+  too worried about who fixed them just yet -- drop that requirement.  Let's
+  just note that it was resolved, and when it was resolved.  Any other
+  questions?
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Under your rules, today's snapshot breaks down like this:
+
+  ┌──────────────────────┬────────────┬─────────────────────────────────────┐
+  │         Rule         │   Action   │            Records today            │
+  ├──────────────────────┼────────────┼─────────────────────────────────────┤
+  │ Record or sale date  │            │ 4. All four are record dates, from  │
+  │ before 2012          │ Quarantine │ the years 212, 2006, 2008 and 2011. │
+  │                      │            │  No sale dates fail.                │
+  ├──────────────────────┼────────────┼─────────────────────────────────────┤
+  │ Record date after    │ Quarantine │ 1 (Oct 29)                          │
+  │ the download date    │            │                                     │
+  ├──────────────────────┼────────────┼─────────────────────────────────────┤
+  │ Record date before   │            │                                     │
+  │ sale date, both      │ Flag       │ 725                                 │
+  │ dates valid          │            │                                     │
+  └──────────────────────┴────────────┴─────────────────────────────────────┘
+
+  So 5 records are quarantined. That's small, but the checks really do fail on
+  bad data, which is what the exercise asks for.
+
+  Resolved records. An entry is marked resolved, with a date, when a later
+  download shows the problem gone. Two cases count: the fixed record now passes,
+  or the record no longer appears at all. "Who fixed it" is dropped.
+
+  A design detail I'll handle my way unless you object: fixing a date in the
+  source can change the record's key, because SALEDATE is part of it. The record
+  would then look like a new record, and its original entry would never close.
+  My plan is to match records on the deed itself (PARID + DEEDBOOK + DEEDPAGE)
+  when deciding whether a flagged record was resolved. I'd fall back to the full
+  key only for the few records with no deed reference.
+
+  One gap the rules don't cover yet: 1,248 records have no RECORDDATE at all.
+  Should a missing record date be quarantined, flagged, or allowed through as
+  normal?
+
+> Are we really using that natural key (PARID + DEEDBOOK  + DEEDPAGE +
+  SALEDATE)?
+
+● Not yet. Nothing has been built for the cleaned layer, so no code uses any
+  key. PARID + DEEDBOOK + DEEDPAGE + SALEDATE is only what I recommended after
+  testing it against today's data. It's your decision.
+
+  You're right to question it, too: in my last message I proposed tracking
+  resolved records by the deed alone (PARID + DEEDBOOK + DEEDPAGE), which isn't
+  the same key. One record identity should be used everywhere. Let me check how
+  the key behaves for the records with no deed reference, since they're the only
+  reason SALEDATE was added.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● No code uses that key yet. It's only my recommendation, and looking closer
+  it's weaker than I said.
+
+  It's only unique because of meaningless zeros. Deeds come in two groups:
+  - 503,905 records with a real deed reference. For these, PARID + DEEDBOOK +
+    DEEDPAGE alone is unique, with no duplicates. SALEDATE isn't needed.
+  - 2,821 records with no deed reference, mostly mobile home sales. Their book
+    and page are null or placeholders, and the placeholders are spelled several
+    different ways: 0, 00, 000, 0000, 00000. If those are treated as the same
+    thing, 17 pairs of records share the same parcel and sale date, e.g.:
+
+  8000T00220000000  2021-12-22  book 00  / page 00   Mobile Home Sale
+  8000T00220000000  2021-12-22  book 000 / page 000  Mobile Home Sale
+
+    9 of the pairs match on every field except the placeholder spelling. They
+    look like the same mobile home sale entered twice. The 4-column key only
+    kept them apart through those meaningless differences in zeros.
+
+  What I now recommend:
+  - Key: the 4 columns as they appear in the source (PARID, DEEDBOOK, DEEDPAGE,
+    SALEDATE), without converting placeholders to null. It's unique today, and a
+    check fails the run if that ever stops being true. The README says plainly
+    that it comes from the data, not from the county.
+  - A new flag, "possible duplicate entry": records with no real deed and the
+    same parcel and sale date. That's 17 pairs, for the steward to look at. It's
+    another check written because of something found in this dataset.
+  - I'm withdrawing my deed-only matching idea. Using the same key everywhere
+    handles a corrected date well: the old flagged record disappears and is
+    marked resolved, and the corrected record shows up as a new record that
+    passes. That's the behavior you'd want.
+
+  Does that key, with the new duplicate flag, work for you?
+
+> " Using the same key everywhere handles a corrected date well: the old
+  flagged record disappears and is marked resolved, and the corrected record
+  shows up as a new record that passes."  How do we know this was resolved, if
+  the record disappears?  Are we able to indicate it was replaced by the new
+  record?
+
+● No. If the record simply disappears, we only know the problem is gone. We
+  don't know it was fixed, because a deletion looks the same. To say "replaced
+  by", we need to link the old record to a new one, and the deed reference can
+  do that. Let me check how well it works on the real changes between Oct 26 and
+  Oct 28.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Yes, we can link most of them. For records with a real deed reference, PARID +
+  DEEDBOOK + DEEDPAGE is unique, so if a flagged record disappears and a new
+  record with the same deed appears in the same snapshot, that new record is
+  almost certainly its replacement. The deed doesn't change when someone
+  corrects a date.
+
+  What really happened between Oct 26 and Oct 28:
+  - Of the 206 records that changed or disappeared, 205 came back with the same
+    key. These were edits to other fields, not new records:
+    - 204 had their SALECODE / SALEDESC reclassified.
+    - 1 had its PRICE changed.
+  - 1 record disappeared with no successor. That's a real deletion.
+  - No sale dates were corrected in this window, so the "replaced" case hasn't
+    happened yet. We're designing for it, not observing it.
+
+  So I'd mark each resolved entry with one of three outcomes:
+
+  ┌──────────┬─────────────────────────────────┬────────────────────────────┐
+  │ Outcome  │          What happened          │        How we know         │
+  ├──────────┼─────────────────────────────────┼────────────────────────────┤
+  │          │ Same key, the record still      │                            │
+  │ Fixed    │ exists, and it now passes the   │ Direct match on the key    │
+  │          │ check                           │                            │
+  ├──────────┼─────────────────────────────────┼────────────────────────────┤
+  │          │ The key disappeared, and a new  │ Match on the deed, linked  │
+  │ Replaced │ record with the same deed       │ to the new record's key    │
+  │          │ appeared in the same snapshot   │                            │
+  ├──────────┼─────────────────────────────────┼────────────────────────────┤
+  │          │ The key disappeared, with no    │ No match. It's worth       │
+  │ Removed  │ successor                       │ showing separately, since  │
+  │          │                                 │ a deletion isn't a fix.    │
+  └──────────┴─────────────────────────────────┴────────────────────────────┘
+
+  Records with no deed reference, mostly mobile homes, can only be "fixed" or
+  "removed". Nothing reliable links them to a replacement, and the design should
+  say so rather than guess.
+
+  A side finding that matters for choosing your question: the county
+  reclassifies sale codes after the fact. 204 of these records changed category
+  in two days. Any analysis that relies on SALECODE, such as filtering to
+  "valid" market sales, is working with a classification that keeps being
+  revised.
+
+  Does that three-way resolution (fixed, replaced, removed) work for you?
+
+> yes.
+
+● Here's the full picture as I have it. I'm taking your "yes" as covering the
+  key as well; tell me if not.
+
+  Record identity. PARID + DEEDBOOK + DEEDPAGE + SALEDATE, using the source
+  values as they are. A check fails the run if the key is ever duplicated.
+
+  Quarantine. Quarantined records are held out of the cleaned table:
+  - a record date or sale date before 2012
+  - a record date after the download date
+
+  Flags. Flagged records stay in the cleaned table and are also listed for the
+  steward:
+  - record date before sale date (both dates valid)
+  - possible duplicate entry: no real deed, and the same parcel and sale date
+
+  The steward's table. One entry per record per problem. Each entry keeps its
+  first-seen date across re-runs and is marked resolved when a later snapshot
+  shows the problem gone, with a date and an outcome: fixed, replaced (linked to
+  the new record) or removed. The steward browses it whenever they like, for
+  example in the DuckDB UI. Nobody emails them.
+
+  Monitoring for you. Each run records the count and rate for every check. If a
+  rate jumps, you get an email with a subject line that stands out, the old and
+  new rates, and the snapshot it came from. Email is designed but not built; for
+  now the alert is recorded and printed. My call: a "jump" means a rate more
+  than double its previous value and also above a small minimum. I'd treat that
+  as a starting threshold to tune later.
+
+  Adding checks. Each check is one self-contained definition, so a new check is
+  a small addition.
+
+  Size: this is big enough for a written design document, which I'll put in
+  docs/superpowers/specs/. A reviewer reads it before you do, and then you
+  approve it before any code is written.
+
+  Last open question: 1,248 records have no RECORDDATE. Should a missing record
+  date be quarantined, flagged, or allowed through as normal?
+
+> I would think that a missing record date should be quarantined, but that's a
+  lot of records to quarantine.  Seems like it is something that the data
+  steward lets through.  I think I'd want to know how the data steward feels
+  about it, but for now, let's quarantine those records.  With misgivings.
+  Perhaps we will change them to being flagged only later.  Which leads to my
+  next question, how are checks added, removed, and modified?
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● I'll quarantine missing record dates, and note your misgivings in the design.
+  Something that supports them: the missing dates aren't spread evenly. 827 are
+  mobile home sales, followed by certificates of transfer (157), treasurer deeds
+  (151) and memoranda of lease (90). Only 7 are ordinary deeds, and most of the
+  records are from 2012–2016. These look like transfer types that are often
+  never recorded, so "no record date" may mean not applicable rather than
+  missing. That's a good thing to bring to the steward. The design will make it
+  easy to change this check to flag-only later.
+
+  How checks are added, removed and changed
+
+  My recommendation: all checks are defined in one Python file, wprdc/checks.py.
+  Each check is a short entry:
+
+  Check(
+      id="record_date_missing",
+      description="RECORDDATE is null",
+      action="quarantine",        # or "flag"
+      where="record_date IS NULL",
+  )
+
+  where is a SQL condition that selects the records that fail the check.
+
+  - Add a check: add an entry.
+  - Change a check: edit the entry. For example, switching action from
+    "quarantine" to "flag" is a one-word change.
+  - Remove a check: mark the entry retired=True instead of deleting it, so its
+    history stays readable.
+
+  The changes go through git, so every change to a rule is reviewed and has a
+  date. I'd reject keeping the rules in a database table: changes there would
+  leave no history and nobody would review them.
+
+  What the steward's table needs to handle when a rule changes:
+  - Changing quarantine to flag releases the records into the cleaned table, but
+    their entries stay open. The problem still exists; only how it's handled
+    has changed.
+  - Changing the logic or retiring a check can make entries stop failing even
+    though nobody fixed anything. Those need a fourth outcome, "rule changed",
+    so they aren't counted as fixes.
+  - Each run records the version of each check, so the rate history shows where
+    a definition changed. A jump caused by your own rule change doesn't trigger
+    a false alarm. Instead, the alert says the definition changed.
+
+  Should changing a check's action, such as moving missing record dates from
+  quarantine to flag, stay something only you do in code, or does the steward
+  need to be able to make that change themselves?
+
+> That should only be done by me in code.  I am hopeful that the data steward
+  and I would be communicating regularly and working together on these things.
+
+● That settles who changes rules: only you, in code. The next step is writing
+  the design document. First I'll look at how the existing raw layer is built so
+  the design fits it.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now I'll write the design. Normally a separate reviewer reads it first, but
+  since you haven't asked for subagents, I'll do that read myself.
+
+● Write(docs\superpowers\specs\2026-10-28-data-quality-checks-design.md)
+  ⎿  Wrote 260 lines to
+     docs\superpowers\specs\2026-10-28-data-quality-checks-design.md
+      1 # Data quality checks — design
+      2
+      3 Date: 2026-10-28. Status: draft for approval.
+      4
+      5 ## Intent
+      6
+      7 Property sales records have bad values: a record date in the year
+         212, record
+      8 dates after the download, record dates before the sale. The check
+        s should catch
+     … +252 lines (ctrl+o to expand)
+
+● Found a gap: the steward's view determined "fixed/replaced/removed" from raw
+  snapshots, but pruning could erase that data. I'm fixing it so the outcome is
+  decided and stored at check time instead.
+● Update(docs\superpowers\specs\2026-10-28-data-quality-checks-design.md)
+  ⎿  Added 9 lines, removed 2 lines
+      161  so the first evaluation of a snapshot older than the last eval
+           uated one is
+      162  skipped (cannot happen in normal use).
+      163  
+      164 -`dq.v_issues` is a **view** over `dq.check_result`, so it can 
+          -always be                                                     
+      165 -rebuilt and never drifts from the results. One row per (check,
+          - record key):                                                 
+      164 +`dq.issue_resolution`: written when a snapshot is evaluated, f
+          +or each issue                                                 
+      165 +open before it that no longer fails in it: `check_id, sale_key
+          +,                                                             
+      166 +resolved_snapshot_id, outcome, replaced_by_sale_key`. Deciding
+          + the outcome needs                                            
+      167 +that snapshot's raw rows, so it is decided then and stored, wh
+          +ich keeps the                                                 
+      168 +issue list readable after raw snapshots are pruned. It depends
+          + only on the                                                  
+      169 +snapshot and the check definitions, so it is the same on a reb
+          +uild.                                                         
+      170  
+      171 +`dq.v_issues` is a view over `dq.check_result` and `dq.issue_r
+          +esolution`. One                                               
+      172 +row per (check, record key) occurrence:                       
+      173 +                                                              
+      174  - `check_id`, record key columns, current `action`
+      175  - `first_seen_at`: download time of the first snapshot where i
+           t failed
+      176  - `last_seen_at`: download time of the most recent snapshot wh
+           ere it failed
+
+● Update(docs\superpowers\specs\2026-10-28-data-quality-checks-design.md)
+  ⎿  Added 2 lines, removed 3 lines
+      193    `clean.property_sales` but leaves their issues **open**: the
+            problem still
+      194    exists.
+      195  
+      196 -Builder's call: whether the resolution logic lives in the view
+          - or in a small                                                
+      197 -table refreshed by the transform, as long as it is fully deriv
+          -able from                                                     
+      198 -`dq.check_result` and the snapshots.                          
+      196 +Alerts and resolutions are written at most once per (snapshot,
+          + check, check                                                 
+      197 +version), so re-running the transform on the same snapshot add
+          +s nothing.                                                    
+      198  
+      199  ## Clean table
+      200  
+
+● Update(docs\superpowers\specs\2026-10-28-data-quality-checks-design.md)
+  ⎿  Added 2 lines, removed 2 lines
+      198  
+      199  ## Clean table
+      200  
+      201 -`clean.property_sales` = `clean.property_sales_typed` minus re
+          -cords with any                                                
+      202 -current `quarantine` result, plus `dq_flags` (list of failing 
+          -`flag` check                                                  
+      201 +`clean.property_sales` = `clean.property_sales_typed` minus re
+          +cords failing                                                 
+      202 +any check whose action in `checks.py` is currently `quarantine
+          +`, plus `dq_flags` (list of failing `flag` check              
+      203  ids, empty if none). Rebuilt in full each run from the latest 
+           snapshot, inside
+      204  one transaction.
+      205  
+
+● Update(docs\superpowers\specs\2026-10-28-data-quality-checks-design.md)
+  ⎿  Added 1 line, removed 1 line
+      126  | `record_date_future` | `record_date > download_date` | quara
+           ntine | 1 (Oct 29) |
+      127  | `record_date_missing` | `record_date` null and `RECORDDATE` 
+           null | quarantine | 1,248 |
+      128  | `record_before_sale` | both dates valid and `record_date < s
+           ale_date` | flag | 725 |
+      129 -| `possible_duplicate` | no real deed, and another no-deed rec
+          -ord has the same `PARID` and `SALEDATE` | flag | 17 pairs |   
+      129 +| `possible_duplicate` | no real deed, and another no-deed rec
+          +ord has the same `PARID` and `SALEDATE` | flag | 17 groups (pa
+          +irs) |                                                        
+      130  
+      131  Notes:
+      132  
+
+● Update(docs\superpowers\specs\2026-10-28-data-quality-checks-design.md)
+  ⎿  Added 2 lines, removed 1 line
+      260  - Record key on unchanged source values; `possible_duplicate` 
+           flag.
+      261  - Rate-jump rule: more than double and at least 10 more failur
+           es.
+      262  - Check version = hash of the `where` text only.
+      263 -- Steward list as a view derived from per-snapshot results.   
+      263 +- Steward list as a view over per-snapshot results plus resolu
+          +tions stored                                                  
+      264 +  at evaluation time (so it survives raw pruning).            
+      265  - Only the latest snapshot is evaluated; no backfill.
+      266  - Unparseable dates count as invalid (none today).
+      267  - `download_date` is the UTC date of the snapshot's first fetc
+           h.
+
+● I've written the design document:
+  docs/superpowers/specs/2026-10-28-data-quality-checks-design.md. It isn't
+  committed yet.
+
+  What it contains:
+  - Your decisions, collected in a "Decided by Stephen" section:
+    - the steward works through the issue list at their own pace
+    - you get an email on a rate jump (designed, not built)
+    - the quarantine rules, including missing record dates "with misgivings"
+    - "future" means after the download date
+    - resolved and when, not who
+    - fixed / replaced / removed / rule changed
+    - only you change checks, in code
+  - How the pieces fit:
+    - a typed table built from the latest snapshot
+    - checks defined in wprdc/checks.py
+    - per-snapshot results and rate history
+    - the steward's views dq.v_issues and dq.v_open_issues
+    - clean.property_sales, with quarantined records held out and a dq_flags
+      column
+    - dq.alert and a single notify() function, where email would later be added
+  - Six initial checks, each with today's count. There's also one check that
+    fails the run: the record key must be unique.
+  - Non-goals: sending email, who fixed a record, a steward UI, backfilling, and
+    the parcel/sales split. That split is left for when you choose your
+    question.
+
+  The gap I found reading it as the builder, now fixed: I had planned for the
+  steward's list to work out "fixed / replaced / removed" by looking at raw
+  snapshots. Those can be pruned, which would break it. Outcomes are now decided
+  and stored when each snapshot is checked.
+
+  My calls, which you should check while reading:
+  1. The record key uses the source values exactly as they arrive, plus the
+     possible_duplicate flag.
+  2. A "jump" means the rate more than doubles and at least 10 more records
+     fail. These are starting values to tune later.
+  3. A check's version changes only when its SQL condition changes. Changing
+     quarantine to flag doesn't count as a new version, so the issues stay open.
+  4. Only the latest snapshot is checked, and new checks aren't applied to old
+     snapshots.
+  5. Dates that can't be parsed count as invalid. There are none today.
+  6. "Download date" means the UTC date of the snapshot's first fetch.
+
+  One thing to weigh before approving: this is a fair amount of machinery, and
+  you have about 4½ days left that also need to cover the question, the output
+  table and the README. My estimate is that it's buildable in that time, but if
+  you want to cut scope, the issue-resolution tracking is the part to simplify
+  first.
+
+  Once you approve it, or tell me what to change, I'll commit it and write the
+  implementation plan.
+
+> I am not following this: "The gap I found reading it as the builder, now
+  fixed: I had planned for the steward's list to work out "fixed / replaced /
+  removed" by looking at raw snapshots. Those can be pruned, which would break
+  it. Outcomes are now decided and stored when each snapshot is checked"
+  Please explain.
+
+● To decide an outcome, the pipeline has to look at the full data for the
+  snapshot where the problem went away. The fix is to make that decision once,
+  while the data is still there, and store the answer.
+
+  Why the outcome needs the full data. Take a flagged record: parcel X, deed
+  16294/325, sale date 2018-08-17, recorded 2008-08-17. In the next snapshot it
+  isn't flagged any more. To say why, the pipeline has to look in that snapshot:
+  - Is the record still there, unflagged? Then it was fixed.
+  - Is it gone, but a record with the same deed is there? Then it was replaced,
+    for example because the date was corrected.
+  - Is it gone with nothing like it? Then it was removed.
+
+  All three answers need the snapshot's full 506,000 rows, not only the list of
+  flagged records.
+
+  The problem with my first version. I had made the steward's list a view. A
+  view is a saved query that recalculates every time someone opens it. So each
+  time the steward opened the list, it would go back to the raw snapshots to
+  answer those three questions again.
+
+  The raw layer, however, lets you prune old snapshots: delete their rows from
+  the database to save space, keeping only the CSV files. Once the snapshot
+  where an issue was resolved had been pruned, the view would have nothing to
+  look in. Those resolved issues would lose their outcome, or the view would
+  fail.
+
+  The fix. The outcome is now decided once, when the pipeline checks a new
+  snapshot, while that snapshot's rows are definitely in the database. The
+  answer is stored in a small table, dq.issue_resolution, which says which
+  issue, which snapshot resolved it, the outcome, and the replacing record if
+  there is one. The steward's list reads that stored answer, so pruning raw
+  snapshots later doesn't affect it.
+
+  This doesn't make rebuilds give different answers. The outcome still depends
+  only on the snapshot and the check definitions, so rebuilding from the archive
+  produces the same result.
+
+> I am still not following entirely.  Part of it is I am not appreciating the
+  raw layer as much as I should.  We would regularly prune old snapshots to
+  save space?  That makes sense (keeping the CSVs).   Tell me more about the
+  raw layer.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The raw layer is the part of the pipeline that keeps the data exactly as WPRDC
+  delivered it, before any typing, trimming or checks. In this project it's
+  stored at two levels, and pruning only touches one of them.
+
+  The two levels of "raw"
+
+  1. The CSV archive (data/raw/.../dump/*.csv). This is the permanent record.
+  - Every successful download is saved as a file and never changed or deleted.
+  - Each file is about 105 MB. There are 3 so far (314 MB).
+  - Every file traces back to a logged fetch in ops.fetch_resource.
+
+  2. The raw tables in DuckDB (raw.property_sales). This is a working copy.
+  - Each distinct CSV is loaded once as a snapshot: all ~506,000 rows, every
+    column still text, tagged with that file's snapshot_id and a row hash.
+  - Snapshots are never edited. Each one is the complete dataset as of one
+    download.
+  - A snapshot takes roughly 35–40 MB inside DuckDB (the database is 79 MB
+    holding two).
+
+  Everything downstream is built from level 2. The cleaned layer and the checks
+  are rebuilt from it, and none of them change the raw data.
+
+  What the snapshots in DuckDB are for
+
+  - Viewing any day's data: WHERE snapshot_id = ... returns the dataset exactly
+    as it was on that day. This is why you rejected the history table.
+  - Comparing snapshots: raw.snapshot_diff() and v_snapshot_changes showed the
+    204 sale-code reclassifications between Oct 26 and Oct 28.
+  - Re-running the cleaned layer: when you change a rule, you can rebuild from
+    data that is still exactly as it arrived.
+
+  Pruning
+
+  At one snapshot per day, the DuckDB copy grows by about 14 GB a year. The CSV
+  archive grows by about 38 GB.
+
+  python -m wprdc.load_raw --prune-keep 30 deletes the rows of all but the 30
+  most recent snapshots from DuckDB. The catalog entry stays, marked pruned_at,
+  and the CSV stays on disk. --rebuild reloads everything from the CSVs, so
+  pruning can always be undone.
+
+  Nothing prunes automatically today. It's a command you choose to run. With
+  daily refreshes in production, you'd probably run it on a schedule: keep a
+  month or so of snapshots ready to query and leave the older ones in the
+  archive.
+
+  How this connects to the data quality design
+
+  The checks only ever run against the latest snapshot, which is never pruned.
+  But an issue's history spans many snapshots: first seen on Oct 26, resolved on
+  Nov 15, and so on.
+
+  - The first version worked out "fixed / replaced / removed" whenever someone
+    opened the steward's list, by looking in the snapshot where the issue was
+    resolved. Two months later, after pruning, that snapshot's rows would be
+    gone from DuckDB. You'd have to run --rebuild just to read the list.
+  - The revised version makes that decision on the day the snapshot is checked,
+    while its rows are certainly there, and writes the answer down. After that,
+    the steward's list never needs the old raw rows again, however much you
+    prune.
+
+  In short: the CSVs are kept forever, the DuckDB snapshots are a pruneable
+  working copy, so anything we'll need to know long-term about a snapshot should
+  be worked out and saved while it's loaded.
+
+> Thanks.  Do we really need the row hash?
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Not strictly. Nothing depends on it for correctness, and the data quality
+  design doesn't use it at all. Here's what it does, what it costs, and what
+  replacing it would look like.
+
+  Where it's used (from searching the code):
+  - raw.snapshot_diff(), which lists the rows added and removed between two
+    snapshots
+  - raw.v_snapshot_changes, which counts them per snapshot
+
+  That's all. The hash is md5 of every source column except _id. It works as a
+  fingerprint of a row's content, so comparing two snapshots becomes a join on
+  one column instead of 24.
+
+  What it costs: it's the largest column in the raw table, about 9 MB per
+  snapshot, or roughly 20% of raw storage. Hashes look random, so they don't
+  compress.
+
+  What we'd lose without it: nothing we couldn't rebuild. At 500,000 rows,
+  DuckDB can compare snapshots across all columns directly:
+  SELECT * EXCLUDE (snapshot_id, source_row_number, row_hash, _id) FROM
+  raw.property_sales WHERE snapshot_id = :new
+  EXCEPT ALL
+  SELECT * EXCLUDE (snapshot_id, source_row_number, row_hash, _id) FROM
+  raw.property_sales WHERE snapshot_id = :old
+  That gives the same answer and runs in about a second at this size. A third
+  option is to compute the hash inside the comparison query instead of storing
+  it.
+
+  Where it would earn its place:
+  - At 100x scale, a one-column join is much cheaper than comparing every
+    column, and a stored fingerprint lets you detect changed rows without
+    re-reading old data. That's a natural point for the README's scaling
+    section.
+  - Together with the record key: "same key, different hash" is the simplest
+    definition of this record was updated. That's exactly how we found the 204
+    sale-code reclassifications.
+
+  My recommendation: keep it. It's already built and tested, its cost is small
+  in absolute terms (about 9 MB a snapshot), and it gives you a clear story for
+  both the update question and the 100x question. That said, dropping it in
+  favor of EXCEPT ALL would be a perfectly defensible simplification. If you'd
+  rather the raw table hold only source data plus where each row came from, I
+  can make that change in a few lines.
+
+  Do you want to keep it, or simplify? And separately, is the data quality
+  design ready to approve, or are there parts you want to change?
+
+> Agree, keep it.  I have not read the data quality design yet.  I will do that
+  now.
+
+● OK, we'll keep the row hash.
+
+  The design is at
+  docs/superpowers/specs/2026-10-28-data-quality-checks-design.md. Two parts are
+  worth reading closely:
+  - "Claude's calls (check these)", at the end, lists the decisions I made
+    rather than you.
+  - The resolution section, under "Results and the steward's list", is the part
+    we just went through. It's where dq.issue_resolution comes in.
+
+  When you've read it, tell me what to change, or approve it. After you approve,
+  I'll commit it and write the implementation plan.
+
+> ok, this bit about the key uniqueness failing the run worries me.  We don't
+  know what the natural key is really supposed to be, we are just guessing
+  based on two snapshots close in time so far.  If we find out that our natural
+  key choice is incorrect, we are just dead in the water and have to fix it
+  that day -- with new information -- in order to keep running.  What do you
+  think about this?
+
+● I think you're right. Failing the run is the wrong response to a key
+  collision, for the reason you give: the key is an assumption we drew from two
+  snapshots two days apart, not a rule the county guarantees. The data already
+  shows how fragile it is: 9 mobile-home pairs are only told apart by how their
+  placeholder zeros are spelled. One day of the county entering a duplicate, and
+  the pipeline would stop until you rethought the key. A guess shouldn't be
+  able to stop the pipeline.
+
+  What I'd do instead: treat a key collision as something to tell you about, not
+  something that stops the run.
+  - Make key_unique a flag check like the others. The colliding records stay in
+    the clean table, flagged key_not_unique, and the steward can see them.
+  - Alert you immediately on the first collision. The baseline is zero, so the
+    "more than double" rule doesn't fit here. Any collision is news, because it
+    means the key assumption has just been shown wrong. The alert says which
+    records collided.
+  - Downstream keeps working, with less precision for those few records. Issue
+    tracking is already done per (check, key). If two records share a key, the
+    issue covers both: it stays open while either one fails and resolves when
+    neither does. For "replaced", if more than one successor matches the deed,
+    the pipeline records the outcome as replaced without naming a successor
+    rather than guessing. Nothing breaks. Only the colliding records get
+    blurrier, and you fix the key when you're ready, not the same day.
+
+  What should still fail the run: problems that mean the pipeline can't sensibly
+  carry on, as opposed to data that's surprising:
+  - the CSV's columns don't match what's expected. This already exists: load_raw
+    checks the header.
+  - the downloaded row count doesn't match CKAN's reported total. Ingest already
+    validates the file.
+  - the transform can't build the typed table at all.
+
+  These show the exercise's "checks that actually fail on bad data" at two
+  levels: runs fail on structural breakage, and records are quarantined for
+  impossible values. A wrong guess about the key causes neither.
+
+  Should I update the design this way: key_unique as a flag with an immediate
+  alert, and structural checks as the only things that fail a run?
+
+> yes
+
+● Update(docs\superpowers\specs\2026-10-28-data-quality-checks-design.md)
+  ⎿  Added 29 lines, removed 5 lines
+      139    2012 cutoff.
+      140  - A record failing several checks gets one result per check.
+      141  
+      142 -### Run-level check (fails the run)                           
+      142 +### Key collisions (flag and alert, never fail the run)       
+      143  
+      144 -`key_unique`: no two rows of `clean.property_sales_typed` shar
+          -e a key. If it                                                
+      145 -fails, the transform raises, the run is recorded as failed, an
+          -d the previous                                                
+      146 -clean table is left in place. This is not a steward issue; it 
+          -means the record                                              
+      147 -identity assumption broke.                                    
+      144 +`key_not_unique` (flag): the record shares its key with anothe
+          +r row of the                                                  
+      145 +snapshot. 0 today.                                            
+      146  
+      147 +The key is an assumption drawn from two snapshots two days apa
+          +rt, not a rule                                                
+      148 +the county guarantees, so a collision must not stop the pipeli
+          +ne. Instead:                                                  
+      149 +                                                              
+      150 +- The colliding records stay in `clean.property_sales`, flagge
+          +d, and appear in                                              
+      151 +  the steward's list.                                         
+      152 +- The engineer is alerted on the **first** collision (kind `ke
+          +y_collision`),                                                
+      153 +  not by the rate-jump rule: the baseline is zero, so any coll
+          +ision means the                                               
+      154 +  key assumption has just been shown wrong. The alert lists th
+          +e colliding keys.                                             
+      155 +- Downstream keeps working, less precisely for those records: 
+          +an issue is per                                               
+      156 +  (check, key), so it stays open while any record with that ke
+          +y fails and                                                   
+      157 +  resolves when none does. If more than one successor matches 
+          +a deed, the                                                   
+      158 +  outcome is `replaced` with `replaced_by` left null.         
+      159 +- The engineer revises the key when ready, as a normal code ch
+          +ange.                                                         
+      160 +                                                              
+      161 +### What fails a run                                          
+      162 +                                                              
+      163 +Only structural problems, where the pipeline cannot sensibly c
+          +arry on:                                                      
+      164 +                                                              
+      165 +- the CSV's columns don't match the expected header (exists: `
+          +load_raw`)                                                    
+      166 +- the downloaded row count doesn't match CKAN's reported total
+          + (exists: ingest)                                             
+      167 +- the typed table cannot be built at all                      
+      168 +                                                              
+      169 +On failure the run is recorded as failed and the previous clea
+          +n table is left                                               
+      170 +in place. Surprising data never fails a run; impossible values
+          + are quarantined                                              
+      171 +and doubtful ones flagged.                                    
+      172 +                                                              
+      173  ## Results and the steward's list
+      174  
+      175  `dq.check_result`: one row per (snapshot, check, check version
+           , failing record):
+
+● Update(docs\superpowers\specs\2026-10-28-data-quality-checks-design.md)
+  ⎿  Added 4 lines, removed 1 line
+      258  
+      259  - Each check, on small fixture rows that should and shouldn't 
+           fail it
+      260    (including the real `0212-08-01` row's values).
+      261 -- `key_unique` failing the run and leaving the previous clean 
+          -table in place.                                               
+      261 +- `key_not_unique` flagging both records, alerting on the firs
+          +t collision,                                                  
+      262 +  and the run still succeeding.                               
+      263 +- A structural failure (e.g. typed table cannot be built) fail
+          +ing the run and                                               
+      264 +  leaving the previous clean table in place.                  
+      265  - Re-running on the same snapshot: no new results, runs or ale
+           rts.
+      266  - Each resolution outcome (`fixed`, `replaced`, `removed`, `ru
+           le_changed`),
+      267    plus reopening.
+
+● Update(docs\superpowers\specs\2026-10-28-data-quality-checks-design.md)
+  ⎿  Added 1 line, removed 1 line
+      240    evaluation, record a notice instead of an alert. The rate ba
+           seline restarts.
+      241  
+      242  `dq.alert`: `alert_id, created_at, run_id, snapshot_id, check_
+           id,
+      243 -check_version, kind ('rate_jump' | 'definition_changed'), prev
+          -ious_rate,                                                    
+      243 +check_version, kind ('rate_jump' | 'key_collision' | 'definiti
+          +on_changed'), previous_rate,                                  
+      244  new_rate, previous_n, new_n, subject, body, notified_at`.
+      245  
+      246  Notification goes through one function, `notify(alert)`. For n
+           ow it prints the
+
+● Update(docs\superpowers\specs\2026-10-28-data-quality-checks-design.md)
+  ⎿  Added 2 lines
+      281    resolved, not who.
+      282  - Resolution outcomes fixed / replaced / removed, plus rule ch
+           anged.
+      283  - Only the engineer changes checks, in code.
+      284 +- A key collision flags and alerts; it never fails the run, be
+          +cause the key is                                              
+      285 +  a guess. Only structural problems fail a run.               
+      286  
+      287  ## Claude's calls (check these)
+      288  
+
+● Update(docs\superpowers\specs\2026-10-28-data-quality-checks-design.md)
+  ⎿  Added 1 line, removed 1 line
+      72  `(PARID, DEEDBOOK, DEEDPAGE, SALEDATE)`, using the **source val
+          ues unchanged**
+      73  (no trimming, placeholders not converted to null). It is unique
+           in both
+      74  snapshots so far. It comes from the data, not from the county, 
+          so a check
+      75 -enforces it.                                                   
+      75 +watches it (`key_not_unique`, below) without depending on it.  
+      76  
+      77  Why not fewer columns: `PARID + DEEDBOOK + DEEDPAGE` is unique 
+          for the 503,905
+      78  records with a real deed reference, but not for the 2,821 recor
+          ds without one
+
+● I've updated the design document
+  (docs/superpowers/specs/2026-10-28-data-quality-checks-design.md). It's still
+  not committed.
+
+  What changed:
+  - The record identity section now says a check watches the key without the
+    pipeline depending on it.
+  - "Run-level check (fails the run)" is replaced by two sections:
+    - Key collisions (flag and alert, never fail the run). key_not_unique flags
+      the colliding records. You're alerted on the first collision, with an
+      alert kind of its own (key_collision) that lists the keys. Issue tracking
+      keeps working, less precisely for those records. You revise the key when
+      you're ready.
+    - What fails a run. Only structural problems: an unexpected header, a row
+      count that doesn't match CKAN, or a typed table that can't be built. When
+      that happens, the previous clean table stays in place.
+  - Tests: a collision flags both records, alerts and still lets the run
+    succeed. A structural failure fails the run and leaves the previous clean
+    table in place.
+  - "Decided by Stephen" now records this decision.
+
+  Carry on reading. When you're done, tell me what else to change, or approve
+  it.
+
+> ok, approved.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Skill(superpowers:writing-plans)
+  ⎿  Successfully loaded skill
+
+● I've committed the approved design locally (567db12, not yet pushed) and will
+  now use the writing-plans skill to draft the implementation plan, starting by
+  reviewing the existing test and module structure.
+  Ran 2 shell commands (ctrl+o to expand)
+
+● I've checked the exact counts the plan will verify against the real data:
+  1,253 quarantined records and 43 records in the 17 possible-duplicate groups.
+  Now I'll write the plan.
+
+● Write(docs\superpowers\plans\2026-10-28-data-quality-checks.md)
+  ⎿  Wrote 428 lines to
+     docs\superpowers\plans\2026-10-28-data-quality-checks.md
+      1 # Data Quality Checks Implementation Plan
+      2
+      3 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:su
+        bagent-driven-development (recommended) or superpowers:executing-
+        plans to implement this plan task-by-task. Steps use checkbox (`-
+         [ ]`) syntax for tracking.
+      4
+      5 **Goal:** `python -m wprdc.transform` builds a typed table and a
+        clean sales table from the latest raw snapshot, runs the data qua
+        lity checks, maintains the steward's issue list, and records rate
+     … +424 lines (~24 KB) (ctrl+o to expand)
+
+● Update(docs\superpowers\plans\2026-10-28-data-quality-checks.md)
+  ⎿  Added 1 line, removed 1 line
+      239  ```
+      240  
+      241  - [ ] **Step 2: Run** `python -m pytest tests/test_dq.py -v`. 
+           Expected: FAIL on import.
+      242 -- [ ] **Step 3: Implement `evaluate` and `current_results`** i
+          -n `wprdc/dq.py`, with `update_issues` / `detect_alerts` / `ret
+          -ire_issues` as no-op stubs that return `None` / `[]`, filled i
+          -n by Tasks 4 and 5.                                           
+      242 +- [ ] **Step 3: Implement `evaluate` and `current_results`** i
+          +n `wprdc/dq.py`, with these no-op stubs, which Tasks 4 and 5 f
+          +ill in: `update_issues(con, eval_id: int, check: Check) -> Non
+          +e`, `retire_issues(con, eval_id: int, check: Check) -> None`, 
+          +`detect_alerts(con, run_id: str, eval_id: int, check: Check) -
+          +> list[dict]` (returns `[]`).                                 
+      243  - [ ] **Step 4: Run** `python -m pytest tests/test_dq.py -v`. 
+           Expected: all pass.
+      244  - [ ] **Step 5: Commit** `git commit -m "Evaluate data quality
+            checks per snapshot"`.
+      245  
+
+● I've written the plan:
+  docs/superpowers/plans/2026-10-28-data-quality-checks.md. It isn't committed
+  yet.
+
+  It has 7 tasks. Each one writes its tests first and ends with a commit.
+  1. Check definitions in wprdc/checks.py: the seven checks, and how a check's
+     version is worked out.
+  2. Schemas and the typed table: sql/clean_schema.sql, sql/dq_schema.sql, test
+     fixtures, and build_typed.
+  3. Evaluating checks: results and rate history, written only once per
+     snapshot.
+  4. Issue lifecycle: open, fixed, replaced, removed, rule changed, and
+     reopening.
+  5. Alerts: rate jump, key collision, and a "definition changed" notice, plus
+     notify(), which prints for now.
+  6. The clean table and python -m wprdc.transform: one transaction, logged as a
+     run.
+  7. Running it on the real data, with exact expected results: 506,726 typed
+     rows, 505,473 clean rows, and the count for every check, e.g. 43 possible
+     duplicates.
+
+  One change from the design you approved. The design had the steward's list as
+  a view built from the results plus a separate dq.issue_resolution table. The
+  plan keeps a single dq.issue table, updated each time a snapshot is checked,
+  with the views on top. The behavior is the same, it still survives pruning,
+  and the SQL is much simpler. Reopening an issue just adds a new row.
+
+  Under "Review Focus", the plan lists five cases that are easy to get wrong,
+  each with a test:
+  - the source going back to an earlier snapshot (A → B → A)
+  - re-running with nothing new
+  - two records sharing a key when only one of them is quarantined
+  - a blank record date counting as missing, not invalid
+  - prices like 1658.0
+
+  How to build it:
+  - Subagent-driven: a fresh agent builds each task and a fresh reviewer checks
+    it before the next one starts. It's more thorough, but slower and uses much
+    more context.
+  - Native: I build every task myself in this session, then one fresh reviewer
+    checks the whole branch at the end.
+
+  I recommend Native. The tasks depend closely on each other's names and tables,
+  there are only seven, the tests catch most mistakes, and with about 4½ days
+  left the README, the analytical question and the output table still need time.
+
+  Does the plan cover what you want, and which approach should we use?
+
+> yes, and use the Native approach.
+
+● Skill(superpowers:executing-plans)
+  ⎿  Successfully loaded skill
+
+● I'm using the executing-plans skill to build this plan myself. First, setup:
+  I'll work on a branch rather than on main.
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+● Skill(superpowers:test-driven-development)
+  ⎿  Successfully loaded skill
+
+● Task 1: check definitions.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Write(tests\test_checks.py)
+  ⎿  Wrote 23 lines to tests\test_checks.py
+       1 from wprdc.checks import CHECKS, Check
+       2
+       3
+       4 def test_check_ids_unique():
+       5     ids = [c.id for c in CHECKS]
+       6     assert len(ids) == len(set(ids)) == 7
+       7
+       8
+       9 def test_version_ignores_whitespace_action_and_description():
+      10     a = Check("x", "d1", "flag", "record_date  IS NULL")
+     … +13 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The collection fails because wprdc.checks doesn't exist yet, which is what's
+  expected. Now I'll implement it.
+
+● Write(wprdc\checks.py)
+  ⎿  Wrote 99 lines to wprdc\checks.py
+       1 """Data quality checks for property sales, run by python -m wprd
+         c.transform.
+       2
+       3 Each check is a SQL condition over clean.property_sales_typed th
+         at selects the
+       4 failing records. Records failing a "quarantine" check are held o
+         ut of
+       5 clean.property_sales; records failing a "flag" check stay in it,
+          with the check
+       6 id in dq_flags. Either way they appear in the data steward's lis
+     … +94 lines (~4 KB) (ctrl+o to expand)
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Task 2: schemas, test fixtures and the typed table.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Write(tests\dq_fixtures.py)
+  ⎿  Wrote 68 lines to tests\dq_fixtures.py
+      1 """Build small raw snapshots directly in the database, for transf
+        orm/dq tests."""
+      2 from datetime import datetime, timedelta, timezone
+      3
+      4 import pytest
+      5
+      6 from wprdc.db import connect
+      7 from wprdc.load_raw import ROW_HASH_SQL, SOURCE_COLUMNS
+      8
+      9 T0 = datetime(2026, 10, 28, 21, 52, tzinfo=timezone.utc)
+     … +59 lines (ctrl+o to expand)
+
+● Write(tests\test_transform.py)
+  ⎿  Wrote 37 lines to tests\test_transform.py
+       1 from datetime import date
+       2
+       3 import pytest
+       4
+       5 from tests.dq_fixtures import T0, con, make_snapshot, sale  # no
+         qa: F401  (con is a fixture)
+       6 from wprdc.transform import TYPED, EvalPoint, TransformError, bu
+         ild_typed
+       7
+       8
+     … +29 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● It fails on importing wprdc.transform, as expected. Next come the schema files
+  and build_typed.
+
+● Write(sql\clean_schema.sql)
+  ⎿  Wrote 7 lines to sql\clean_schema.sql
+      1 -- Cleaned layer. Its tables are rebuilt in full from the latest
+        raw snapshot
+      2 -- by python -m wprdc.transform (see wprdc/transform.py), so only
+         the schema is
+      3 -- declared here:
+      4 --   clean.property_sales_typed  every row of the snapshot, typed
+         and trimmed
+      5 --   clean.property_sales        typed rows minus quarantined one
+        s, with dq_flags
+      6
+     … +1 line (ctrl+o to expand)
+
+● Write(sql\dq_schema.sql)
+  ⎿  Wrote 111 lines to sql\dq_schema.sql
+       1 -- Data quality results, the data steward's issue list, and aler
+         ts for the
+       2 -- engineer. Written by python -m wprdc.transform (see wprdc/dq.
+         py); checks are
+       3 -- defined in wprdc/checks.py.
+       4 --
+       5 -- Schema files are applied alphabetically, before ops and raw,
+         so nothing here
+       6 -- may reference ops.* or raw.* objects.
+       7
+     … +104 lines (ctrl+o to expand)
+
+● Write(wprdc\transform.py)
+  ⎿  Wrote 101 lines to wprdc\transform.py
+       1 """Build the cleaned layer from the latest raw snapshot and run
+         the data quality checks.
+       2
+       3     python -m wprdc.transform
+       4
+       5 clean.property_sales_typed holds every row of the snapshot, type
+         d and trimmed,
+       6 keyed by (PARID, DEEDBOOK, DEEDPAGE, SALEDATE) as delivered.
+       7 """
+       8 from __future__ import annotations
+     … +93 lines (ctrl+o to expand)
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Task 3: evaluating the checks.
+
+● Write(tests\test_dq.py)  ⎿  Wrote 69 lines to tests\test_dq.py
+      1 from tests.dq_fixtures import con, make_snapshot, sale  # noqa: F
+        401  (con is a fixture)
+      2 from wprdc.checks import CHECKS
+      3 from wprdc.dq import evaluate
+      4 from wprdc.transform import build_typed
+      5
+      6
+      7 def run(con, rows, sha="s1", minutes=0, checks=CHECKS):
+      8     make_snapshot(con, sha, rows, minutes)
+      9     return evaluate(con, "r1", build_typed(con), checks)
+     … +60 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● It fails on importing wprdc.dq, as expected. Now I'll implement evaluate.
+
+● Write(wprdc\dq.py)
+  ⎿  Wrote 84 lines to wprdc\dq.py
+       1 """Evaluate data quality checks, maintain the steward's issue li
+         st, raise alerts.
+       2
+       3 Called by wprdc.transform inside its transaction; see sql/dq_sch
+         ema.sql for the
+       4 tables and wprdc/checks.py for the checks.
+       5 """
+       6 from __future__ import annotations
+       7
+       8 import duckdb
+     … +76 lines (ctrl+o to expand)
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Task 4: the issue lifecycle.
+
+● Write(tests\test_dq_issues.py)
+  ⎿  Wrote 94 lines to tests\test_dq_issues.py
+      1 from dataclasses import replace
+      2 from datetime import timedelta
+      3
+      4 from tests.dq_fixtures import T0, con, make_snapshot, refetch, sa
+        le  # noqa: F401  (con is a fixture)
+      5 from wprdc.checks import CHECKS
+      6 from wprdc.dq import evaluate
+      7 from wprdc.transform import TYPED, build_typed
+      8
+      9 MISSING = "record_date_missing"
+     … +85 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All 10 fail on their assertions because no issues exist yet. That's the
+  expected RED, so next I'll implement the lifecycle.
+
+● Update(wprdc\dq.py)
+  ⎿  Added 60 lines, removed 2 lines
+       72  
+       73  
+       74  def update_issues(con: duckdb.DuckDBPyConnection, eval_id: int
+           , check: Check) -> None:
+       75 -    pass                                                      
+       75 +    """Open, carry forward and resolve this check's issues for
+          + one evaluation.                                              
+       76  
+       77 +    An issue that stops failing is resolved with the outcome d
+          +ecided now, while                                             
+       78 +    this snapshot is in clean.property_sales_typed:           
+       79 +      rule_changed  record still present, but the check's vers
+          +ion changed                                                   
+       80 +      fixed         record still present and passes           
+       81 +      replaced      record gone, a record with the same real d
+          +eed is present                                                
+       82 +                    (replaced_by_sale_key named only if exactl
+          +y one)                                                        
+       83 +      removed       record gone, no successor                 
+       84 +    """                                                       
+       85 +    p = {"eval_id": eval_id, "check_id": check.id, "version": 
+          +check.version, "action": check.action}                        
+       86 +    failing = """(SELECT DISTINCT sale_key FROM dq.check_resul
+          +t                                                             
+       87 +                  WHERE eval_id = $eval_id AND check_id = $che
+          +ck_id AND check_version = $version)"""                        
+       88 +    con.execute(                                              
+       89 +        f"""                                                  
+       90 +        UPDATE dq.issue SET resolved_eval_id = $eval_id, outco
+          +me = s.outcome,                                               
+       91 +                            replaced_by_sale_key = s.replaced_
+          +by                                                            
+       92 +        FROM (                                                
+       93 +            WITH gone AS (                                    
+       94 +                SELECT * FROM dq.issue                        
+       95 +                WHERE check_id = $check_id AND resolved_eval_i
+          +d IS NULL                                                     
+       96 +                  AND sale_key NOT IN {failing}               
+       97 +            ), successors AS (                                
+       98 +                SELECT g.issue_id, count(DISTINCT t.sale_key) 
+          +AS n, min(t.sale_key) AS sale_key                             
+       99 +                FROM gone g                                   
+      100 +                JOIN {TYPED} t ON t.PARID = g.PARID AND t.DEED
+          +BOOK = g.DEEDBOOK AND t.DEEDPAGE = g.DEEDPAGE                 
+      101 +                WHERE g.has_real_deed                         
+      102 +                GROUP BY 1                                    
+      103 +            )                                                 
+      104 +            SELECT g.issue_id,                                
+      105 +                   CASE WHEN g.sale_key IN (SELECT sale_key FR
+          +OM {TYPED}) AND g.check_version <> $version                   
+      106 +                             THEN 'rule_changed'              
+      107 +                        WHEN g.sale_key IN (SELECT sale_key FR
+          +OM {TYPED}) THEN 'fixed'                                      
+      108 +                        WHEN s.n > 0 THEN 'replaced'          
+      109 +                        ELSE 'removed' END AS outcome,        
+      110 +                   CASE WHEN g.sale_key NOT IN (SELECT sale_ke
+          +y FROM {TYPED}) AND s.n = 1                                   
+      111 +                        THEN s.sale_key END AS replaced_by    
+      112 +            FROM gone g LEFT JOIN successors s USING (issue_id
+          +)                                                             
+      113 +        ) s                                                   
+      114 +        WHERE dq.issue.issue_id = s.issue_id                  
+      115 +        """, p)                                               
+      116 +    con.execute(                                              
+      117 +        f"""UPDATE dq.issue SET last_seen_eval_id = $eval_id, 
+          +check_version = $version, action = $action                    
+      118 +            WHERE check_id = $check_id AND resolved_eval_id IS
+          + NULL AND sale_key IN {failing}""", p)                        
+      119 +    con.execute(                                              
+      120 +        f"""                                                  
+      121 +        INSERT INTO dq.issue (check_id, check_version, action,
+          + sale_key, PARID, DEEDBOOK, DEEDPAGE,                         
+      122 +                              SALEDATE, has_real_deed, first_s
+          +een_eval_id, last_seen_eval_id)                               
+      123 +        SELECT $check_id, $version, $action, t.sale_key, any_v
+          +alue(t.PARID), any_value(t.DEEDBOOK),                         
+      124 +               any_value(t.DEEDPAGE), any_value(t.SALEDATE), b
+          +ool_or(t.has_real_deed), $eval_id, $eval_id                   
+      125 +        FROM {TYPED} t                                        
+      126 +        WHERE t.sale_key IN {failing}                         
+      127 +          AND t.sale_key NOT IN (SELECT sale_key FROM dq.issue
+      128 +                                 WHERE check_id = $check_id AN
+          +D resolved_eval_id IS NULL)                                   
+      129 +        GROUP BY t.sale_key                                   
+      130 +        """, p)                                               
+      131  
+      132 +                                                              
+      133  def retire_issues(con: duckdb.DuckDBPyConnection, eval_id: int
+           , check: Check) -> None:
+       79 -    pass                                                      
+      134 +    """A retired check's open issues close as rule_changed: no
+          +body fixed them."""                                           
+      135 +    con.execute(                                              
+      136 +        """UPDATE dq.issue SET resolved_eval_id = ?, outcome =
+          + 'rule_changed'                                               
+      137 +           WHERE check_id = ? AND resolved_eval_id IS NULL""",
+          + [eval_id, check.id])                                         
+      138  
+      139  
+      140  def detect_alerts(con: duckdb.DuckDBPyConnection, run_id: str,
+            eval_id: int,
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● DuckDB rejects named parameters that a query doesn't use. I'll pass only the
+  ones each statement needs.
+
+● Update(wprdc\dq.py)
+  ⎿  Added 1 line, removed 1 line
+      112              FROM gone g LEFT JOIN successors s USING (issue_id
+           )
+      113          ) s
+      114          WHERE dq.issue.issue_id = s.issue_id
+      115 -        """, p)                                               
+      115 +        """, {k: v for k, v in p.items() if k != "action"})   
+      116      con.execute(
+      117          f"""UPDATE dq.issue SET last_seen_eval_id = $eval_id, 
+           check_version = $version, action = $action
+      118              WHERE check_id = $check_id AND resolved_eval_id IS
+            NULL AND sale_key IN {failing}""", p)
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Task 5: alerts and notification.
+
+● Write(tests\test_dq_alerts.py)
+  ⎿  Wrote 76 lines to tests\test_dq_alerts.py
+       1 from dataclasses import replace
+       2
+       3 from tests.dq_fixtures import con, make_snapshot, sale  # noqa:
+         F401  (con is a fixture)
+       4 from wprdc.checks import CHECKS
+       5 from wprdc.dq import evaluate, mark_notified, notify, pending_al
+         erts
+       6 from wprdc.transform import build_typed
+       7
+       8
+     … +68 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● It fails because notify and the other alert functions don't exist yet, as
+  expected. Now I'll implement them.
+
+● Update(wprdc\dq.py)
+  ⎿  Added 79 lines, removed 1 line
+      139  
+      140  def detect_alerts(con: duckdb.DuckDBPyConnection, run_id: str,
+            eval_id: int,
+      141                    check: Check) -> list[dict]:
+      142 -    return []                                                 
+      142 +    """Compare this evaluation with the check's previous one; 
+          +record any alert.                                             
+      143 +                                                              
+      144 +    rate_jump           same version, rate > ALERT_RATE_FACTOR
+          + x previous and                                               
+      145 +                        at least ALERT_MIN_INCREASE more failu
+          +res                                                           
+      146 +    key_collision       alert="any" checks: first failure afte
+          +r zero (or ever)                                              
+      147 +    definition_changed  the version differs from the previous 
+          +evaluation's;                                                 
+      148 +                        a notice, and the rate baseline restar
+          +ts                                                            
+      149 +    """                                                       
+      150 +    cur = con.execute(                                        
+      151 +        """SELECT c.n_failing, c.rate, e.snapshot_id, e.as_of 
+      152 +           FROM dq.check_run c JOIN dq.evaluation e USING (eva
+          +l_id)                                                         
+      153 +           WHERE c.eval_id = ? AND c.check_id = ? AND c.check_
+          +version = ?""",                                               
+      154 +        [eval_id, check.id, check.version]).fetchone()        
+      155 +    n, rate, snapshot_id, as_of = cur                         
+      156 +    # Earlier evaluations, or this one at another version (eva
+          +luated before now).                                           
+      157 +    prev = con.execute(                                       
+      158 +        """SELECT c.check_version, c.n_failing, c.rate, e.snap
+          +shot_id                                                       
+      159 +           FROM dq.check_run c JOIN dq.evaluation e USING (eva
+          +l_id)                                                         
+      160 +           WHERE c.check_id = ? AND NOT (c.eval_id = ? AND c.c
+          +heck_version = ?)                                             
+      161 +             AND (e.as_of < ? OR c.eval_id = ?)               
+      162 +           ORDER BY e.as_of DESC, c.eval_id DESC LIMIT 1""",  
+      163 +        [check.id, eval_id, check.version, as_of, eval_id]).fe
+          +tchone()                                                      
+      164 +    prev_version, prev_n, prev_rate, prev_snapshot = prev or (
+          +None, None, None, None)                                       
+      165 +                                                              
+      166 +    where = f"(snapshot {snapshot_id[:8]}, {as_of:%Y-%m-%d})" 
+      167 +    kind = None                                               
+      168 +    if prev is not None and prev_version != check.version:    
+      169 +        kind = "definition_changed"                           
+      170 +        subject = f"[WPRDC DQ NOTICE] {check.id} definition ch
+          +anged {where}"                                                
+      171 +    elif check.alert == "any":                                
+      172 +        if n > 0 and (prev is None or prev_n == 0):           
+      173 +            kind = "key_collision"                            
+      174 +            subject = f"[WPRDC DQ ALERT] {check.id}: {n} recor
+          +ds share a key {where}"                                       
+      175 +    elif (prev is not None and rate > ALERT_RATE_FACTOR * prev
+          +_rate                                                         
+      176 +          and n - prev_n >= ALERT_MIN_INCREASE):              
+      177 +        kind = "rate_jump"                                    
+      178 +        subject = f"[WPRDC DQ ALERT] {check.id}: {prev_rate:.2
+          +%} -> {rate:.2%} {where}"                                     
+      179 +    if kind is None:                                          
+      180 +        return []                                             
+      181 +                                                              
+      182 +    def fmt(count, r):                                        
+      183 +        return "none" if count is None else f"{count:,} ({r:.2
+          +%})"                                                          
+      184 +    body = "\n".join([                                        
+      185 +        f"Check:     {check.id} ({check.description}), action 
+          +{check.action}, version {check.version}",                     
+      186 +        f"Previous:  {fmt(prev_n, prev_rate)} in snapshot {pre
+          +v_snapshot or '-'}",                                          
+      187 +        f"Now:       {fmt(n, rate)} in snapshot {snapshot_id},
+          + fetched {as_of:%Y-%m-%d %H:%M} UTC",                         
+      188 +        "Failures:",                                          
+      189 +        f"  SELECT * FROM dq.check_result WHERE eval_id = {eva
+          +l_id} "                                                       
+      190 +        f"AND check_id = '{check.id}' AND check_version = '{ch
+          +eck.version}';",                                              
+      191 +    ])                                                        
+      192 +    inserted = con.execute(                                   
+      193 +        """INSERT INTO dq.alert (created_at, run_id, eval_id, 
+          +snapshot_id, check_id, check_version,                         
+      194 +                                 kind, previous_rate, new_rate
+          +, previous_n, new_n, subject, body)                           
+      195 +           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)     
+      196 +           ON CONFLICT DO NOTHING                             
+      197 +           RETURNING *""",                                    
+      198 +        [utcnow(), run_id, eval_id, snapshot_id, check.id, che
+          +ck.version, kind,                                             
+      199 +         prev_rate, rate, prev_n if prev is not None else (0 i
+          +f kind == "key_collision" else None),                         
+      200 +         n, subject, body])                                   
+      201 +    return _dicts(inserted)                                   
+      202 +                                                              
+      203 +                                                              
+      204 +def _dicts(cursor) -> list[dict]:                             
+      205 +    cols = [d[0] for d in cursor.description]                 
+      206 +    return [dict(zip(cols, row)) for row in cursor.fetchall()]
+      207 +                                                              
+      208 +                                                              
+      209 +def pending_alerts(con: duckdb.DuckDBPyConnection) -> list[dic
+          +t]:                                                           
+      210 +    return _dicts(con.execute("SELECT * FROM dq.alert WHERE no
+          +tified_at IS NULL ORDER BY alert_id"))                        
+      211 +                                                              
+      212 +                                                              
+      213 +def notify(alert: dict) -> None:                              
+      214 +    """Tell the engineer. Prints for now; an email version (SM
+          +TP settings from                                              
+      215 +    environment variables, subject as given) replaces only thi
+          +s function."""                                                
+      216 +    print(f"\n{alert['subject']}\n{alert['body']}\n")         
+      217 +                                                              
+      218 +                                                              
+      219 +def mark_notified(con: duckdb.DuckDBPyConnection, alert_id: in
+          +t) -> None:                                                   
+      220 +    con.execute("UPDATE dq.alert SET notified_at = ? WHERE ale
+          +rt_id = ?", [utcnow(), alert_id])                             
+
+● Update(wprdc\dq.py)
+  ⎿  Added 1 line, removed 1 line
+       7  
+       8  import duckdb
+       9  
+      10 -from wprdc.checks import Check                                 
+      10 +from wprdc.checks import ALERT_MIN_INCREASE, ALERT_RATE_FACTOR,
+         + Check                                                         
+      11  from wprdc.db import utcnow
+      12  from wprdc.transform import TYPED, EvalPoint
+      13  
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Task 6: the clean table and the transform command.
+
+● Bash(cd "c:/Users/steph/job-search/WPRDC-Data-Pipeline-Exercise" &&
+      "C:/Users/steph/.claude/plugins/cache/claude-plugins-official/superpowers/
+      7.0.0/skills/executing-…)
+  ⎿  Updated tests\test_transform.py (+77 -0)
+       35  def test_build_typed_without_snapshot_raises(con):
+       36      with pytest.raises(TransformError):
+       37          build_typed(con)
+       38 +                                                              
+       39 +                                                              
+       40 +# --- clean table and the transform command ------------------
+          +---------------                                               
+       41 +                                                              
+       42 +from dataclasses import replace  # noqa: E402                 
+       43 +                                                              
+       44 +import duckdb  # noqa: E402                                   
+       45 +                                                              
+       46 +from wprdc import config  # noqa: E402                        
+       47 +from wprdc import transform as transform_module  # noqa: E402 
+       48 +from wprdc.checks import CHECKS  # noqa: E402                 
+       49 +from wprdc.transform import CLEAN, transform  # noqa: E402    
+       50 +                                                              
+       51 +                                                              
+       52 +def clean_rows(con):                                          
+       53 +    return con.execute(f"SELECT source_row_number, dq_flags FR
+          +OM {CLEAN} ORDER BY 1").fetchall()                            
+       54 +                                                              
+       55 +                                                              
+       56 +def test_clean_excludes_quarantined_and_flags(con):           
+       57 +    make_snapshot(con, "s1", [sale(), sale(DEEDPAGE="2", RECOR
+          +DDATE=None),                                                  
+       58 +                              sale(DEEDPAGE="3", RECORDDATE="2
+          +022-06-01")])                                                 
+       59 +    result = transform(con, "r1")                             
+       60 +    assert clean_rows(con) == [(1, []), (3, ["record_before_sa
+          +le"])]                                                        
+       61 +    assert (result["n_rows"], result["n_clean"]) == (3, 2)    
+       62 +                                                              
+       63 +                                                              
+       64 +def test_quarantine_is_by_row_not_key(con):                   
+       65 +    make_snapshot(con, "s1", [sale(), sale(RECORDDATE=None)]) 
+          +  # same key, only row 2 quarantined                          
+       66 +    transform(con, "r1")                                      
+       67 +    assert clean_rows(con) == [(1, ["key_not_unique"])]       
+       68 +                                                              
+       69 +                                                              
+       70 +def test_action_change_releases_records(con):                 
+       71 +    make_snapshot(con, "s1", [sale(RECORDDATE=None)])         
+       72 +    transform(con, "r1")                                      
+       73 +    assert clean_rows(con) == []                              
+       74 +    flagged = [replace(c, action="flag") if c.id == "record_da
+          +te_missing" else c for c in CHECKS]                           
+     … 40 more lines (ctrl+o to expand)
+
+● That change is my own append. Before implementing, I'll move its imports to
+  the top of the file to match the codebase's style.
+
+● Bash(cd "c:/Users/steph/job-search/WPRDC-Data-Pipeline-Exercise" && python -
+      <<'EOF'
+      p = "tests/test_transform.py"…)
+  ⎿  Updated tests\test_transform.py (+107 -114)
+        1 -from datetime import date                                     
+        2 -                                                              
+        3 -import pytest                                                 
+        4 -                                                              
+        5 -from tests.dq_fixtures import T0, con, make_snapshot, sale  # 
+          -noqa: F401  (con is a fixture)                                
+        6 -from wprdc.transform import TYPED, EvalPoint, TransformError, 
+          -build_typed                                                   
+        7 -                                                              
+        8 -                                                              
+        9 -def test_typed_parses_price_and_dates(con):                   
+       10 -    make_snapshot(con, "s1", [sale(PRICE="1658.0"), sale(PRICE
+          -=None, DEEDPAGE="535")])                                      
+       11 -    point = build_typed(con)                                  
+       12 -    assert isinstance(point, EvalPoint)                       
+       13 -    assert point.snapshot_id == "s1"                          
+       14 -    assert point.as_of == T0                                  
+       15 -    assert point.download_date == date(2026, 10, 28)          
+       16 -    assert point.n_rows == 2                                  
+       17 -    assert con.execute(f"SELECT price FROM {TYPED} ORDER BY so
+          -urce_row_number").fetchall() == [(1658,), (None,)]            
+       18 -    assert con.execute(f"SELECT sale_date, record_date FROM {T
+          -YPED} LIMIT 1").fetchone() == (                               
+       19 -        date(2022, 6, 21), date(2022, 7, 6))                  
+       20 -                                                              
+       21 -                                                              
+       22 -def test_key_columns_unchanged_and_real_deed(con):            
+       23 -    make_snapshot(con, "s1", [sale(DEEDBOOK="00", DEEDPAGE="00
+          -0"), sale(DEEDBOOK=" 18965 ")])                               
+       24 -    build_typed(con)                                          
+       25 -    rows = con.execute(f"SELECT DEEDBOOK, has_real_deed FROM {
+          -TYPED} ORDER BY source_row_number").fetchall()                
+       26 -    assert rows == [("00", False), (" 18965 ", True)]         
+       27 -                                                              
+       28 -                                                              
+       29 -def test_text_trimmed_and_blank_is_null(con):                 
+       30 -    make_snapshot(con, "s1", [sale(RECORDDATE="  ")])         
+       31 -    build_typed(con)                                          
+       32 -    assert con.execute(f"SELECT municipality, record_date_text
+          - FROM {TYPED}").fetchone() == ("South Park", None)            
+       33 -                                                              
+       34 -                                                              
+       35 -def test_build_typed_without_snapshot_raises(con):            
+       36 -    with pytest.raises(TransformError):                       
+       37 -        build_typed(con)                                      
+       38 -                                                              
+       39 -                                                              
+       40 -# --- clean table and the transform command ------------------
+          ----------------                                               
+     … 181 more lines (ctrl+o to expand)
+
+● It fails to import transform, which is expected. Now I'll implement
+  build_clean, transform and main.
+
+● Update(wprdc\transform.py)
+  ⎿  Added 11 lines, removed 1 line
+       3      python -m wprdc.transform
+       4  
+       5  clean.property_sales_typed holds every row of the snapshot, typ
+          ed and trimmed,
+       6 -keyed by (PARID, DEEDBOOK, DEEDPAGE, SALEDATE) as delivered.   
+       6 +keyed by (PARID, DEEDBOOK, DEEDPAGE, SALEDATE) as delivered. Th
+         +e checks in                                                    
+       7 +wprdc/checks.py run against it; clean.property_sales is the typ
+         +ed rows minus                                                  
+       8 +quarantined ones, with dq_flags listing the flag checks each ro
+         +w fails.                                                       
+       9 +                                                               
+      10 +Everything happens in one transaction: if any step fails, the r
+         +un is recorded                                                 
+      11 +as failed and the previous clean table stays. Alerts are sent a
+         +fter commit.                                                   
+      12 +Re-running on an already-evaluated snapshot changes nothing.   
+      13  """
+      14  from __future__ import annotations
+      15  
+      16 +import argparse                                                
+      17  from datetime import date, datetime
+      18  from typing import NamedTuple
+      19  
+      20  import duckdb
+      21  
+      22 +from wprdc.checks import CHECKS, Check                         
+      23 +from wprdc.db import connect, run_context                      
+      24 +                                                               
+      25  TYPED = "clean.property_sales_typed"
+      26  CLEAN = "clean.property_sales"
+      27  
+
+● Bash(cd "c:/Users/steph/job-search/WPRDC-Data-Pipeline-Exercise" && cat >>
+      wprdc/transform.py <<'EOF'…)
+  ⎿  Updated wprdc\transform.py (+69 -0)
+      109      if n != point.n_rows:
+      110          raise TransformError(f"snapshot {point.snapshot_id[:12
+           ]}: typed {n} rows, catalog says {point.n_rows}")
+      111      return point
+      112 +                                                              
+      113 +                                                              
+      114 +def build_clean(con: duckdb.DuckDBPyConnection, eval_id: int, 
+          +checks: list[Check]) -> int:                                  
+      115 +    """(Re)build clean.property_sales from the typed table and
+          + eval_id's results.                                           
+      116 +                                                              
+      117 +    Quarantine is per row (source_row_number), not per key, so
+          + a key collision                                              
+      118 +    never drops a row that passes. Actions come from `checks` 
+          +as defined now.                                               
+      119 +    """                                                       
+      120 +    from wprdc.dq import current_results  # dq imports this mo
+          +dule                                                          
+      121 +                                                              
+      122 +    con.execute(                                              
+      123 +        f"""                                                  
+      124 +        CREATE OR REPLACE TABLE {CLEAN} AS                    
+      125 +        WITH cur AS ({current_results(eval_id, checks)}),     
+      126 +        flags AS (                                            
+      127 +            SELECT source_row_number, list(check_id ORDER BY c
+          +heck_id) AS dq_flags                                          
+      128 +            FROM cur WHERE action = 'flag' GROUP BY 1         
+      129 +        )                                                     
+      130 +        SELECT t.*, coalesce(f.dq_flags, []::VARCHAR[]) AS dq_
+          +flags                                                         
+      131 +        FROM {TYPED} t                                        
+      132 +        LEFT JOIN flags f USING (source_row_number)           
+      133 +        WHERE t.source_row_number NOT IN (SELECT source_row_nu
+          +mber FROM cur WHERE action = 'quarantine')                    
+      134 +        ORDER BY t.source_row_number                          
+      135 +        """)                                                  
+      136 +    return con.execute(f"SELECT count(*) FROM {CLEAN}").fetcho
+          +ne()[0]                                                       
+      137 +                                                              
+      138 +                                                              
+      139 +def transform(con: duckdb.DuckDBPyConnection, run_id: str, che
+          +cks: list[Check] = CHECKS) -> dict:                           
+      140 +    from wprdc.dq import evaluate, mark_notified, notify, pend
+          +ing_alerts                                                    
+      141 +                                                              
+      142 +    con.begin()                                               
+      143 +    try:                                                      
+      144 +        point = build_typed(con)                              
+      145 +        eval_id = evaluate(con, run_id, point, checks)        
+      146 +        n_clean = build_clean(con, eval_id, checks)           
+      147 +        con.commit()                                          
+      148 +    except BaseException:                                     
+     … 32 more lines (ctrl+o to expand)
+
+● Everything passes. I'll remove an unused variable in main, then run the full
+  suite and commit.
+● Update(wprdc\transform.py)
+  ⎿  Removed 1 line
+      162      try:
+      163          with run_context(con, "transform") as run_id:
+      164              result = transform(con, run_id)
+      165 -        active = [(c.id, c.version) for c in CHECKS if not c.r
+          -etired]                                                       
+      165          counts = dict(con.execute(
+      166              "SELECT check_id || ':' || check_version, n_failin
+           g FROM dq.check_run WHERE eval_id = ?",
+      167              [result["eval_id"]]).fetchall())
+
+● Bash(cd "c:/Users/steph/job-search/WPRDC-Data-Pipeline-Exercise" && sed -i
+      's/-- ingest | probe | adhoc/-- ingest | probe | adhoc | transform/'
+      sql/ops_schema.sql &&…)
+  ⎿  Updated sql\ops_schema.sql (+1 -1)
+       8  -- One row per script execution (ingest, probe, or ad-hoc dev s
+          ession).
+       9  CREATE TABLE IF NOT EXISTS ops.fetch_run (
+      10      run_id            VARCHAR PRIMARY KEY,
+      11 -    command           VARCHAR NOT NULL,      -- ingest | probe 
+         -| adhoc                                                        
+      11 +    command           VARCHAR NOT NULL,      -- ingest | probe 
+         +| adhoc | transform                                            
+      12      started_at        TIMESTAMPTZ NOT NULL,
+      13      finished_at       TIMESTAMPTZ,
+      14      status            VARCHAR NOT NULL,      -- running | succe
+          eded | failed
+
+● Task 7: running it on the real data.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Your DuckDB session (PID 22132) has the database open, so the pipeline can't
+  write to it. I won't close your session. Instead I'll try running Task 7
+  against a copy of the database in the scratchpad.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Every count matches the plan exactly. Next I'll check that the second run
+  added nothing and that the steward's list agrees.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● All 7 tasks are done. Next is the final review. Native mode, which you chose,
+  includes one fresh reviewer for the whole branch, so I'll start that now.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Agent(Review data quality branch)
+  ⎿  Backgrounded agent (↓ to manage · ctrl+o to expand)
+
+● All 7 tasks are built and committed on the data-quality-checks branch. The
+  full test suite passes: 68 tests.
+
+  On the real data (snapshot dd6c1944…), the output matches the plan exactly:
+  - 506,726 typed rows and 505,473 clean rows
+  - failing records by check:
+    - invalid sale date: 0
+    - invalid record date: 4
+    - record date in the future: 1
+    - missing record date: 1,248
+    - recorded before sale: 725
+    - possible duplicate: 43
+    - key collision: 0
+  - no alerts, because this is the first evaluation
+  - a second run added nothing, and the steward's open-issue list matches these
+    counts
+
+  One thing you need to do: your DuckDB session (the CLI or UI, process 22132)
+  has data/wprdc.duckdb open, so the pipeline couldn't write to it. I ran the
+  verification against a copy in the scratchpad instead. Your real database
+  doesn't have the new clean.* and dq.* tables yet. Once you close that session,
+  or reopen it read-only, run python -m wprdc.transform to create them.
+
+  A fresh reviewer is now checking the whole branch in the background. I'll fix
+  anything serious it finds, with a failing test first for each, and then report
+  back with the decisions I made along the way. Nothing has been pushed or
+  merged into main yet.
+
+> run python -m wprdc.transform
+
+● Bash(cd "c:/Users/steph/job-search/WPRDC-Data-Pipeline-Exercise" &&
+      PYTHONIOENCODING=utf-8 python -m wprdc.transform 2>&1 | tail -12)
+  ⎿  (another command ran in this repository at the same time; a change
+     made by either may show under either result)
+  ⎿  (timeout 10m)
+
+● The transform ran on your real database this time, and the results match the
+  copy exactly:
+
+  ┌─────────────────────────────┬───────────────────────────────────────────┐
+  │                             │                                           │
+  ├─────────────────────────────┼───────────────────────────────────────────┤
+  │ Snapshot                    │ dd6c19442bb7 (Oct 28)                     │
+  ├─────────────────────────────┼───────────────────────────────────────────┤
+  │ Typed rows                  │ 506,726                                   │
+  ├─────────────────────────────┼───────────────────────────────────────────┤
+  │ Clean rows                  │ 505,473 (1,253 quarantined)               │
+  │ (clean.property_sales)      │                                           │
+  ├─────────────────────────────┼───────────────────────────────────────────┤
+  │ Flagged                     │ 725 recorded before sale, 43 possible     │
+  │                             │ duplicates                                │
+  ├─────────────────────────────┼───────────────────────────────────────────┤
+  │ Key collisions              │ 0                                         │
+  ├─────────────────────────────┼───────────────────────────────────────────┤
+  │ Alerts                      │ 0 (first evaluation, so there's no        │
+  │                             │ earlier rate to compare against)          │
+  └─────────────────────────────┴───────────────────────────────────────────┘
+
+  You can now browse the new tables. Open the database read-only, or the next
+  pipeline run won't be able to write:
+  - clean.property_sales: the cleaned table, with a dq_flags column
+  - dq.v_open_issues: the steward's list (2,021 open issues)
+  - dq.check_run: the rate history
+
+  The reviewer is still going through the branch. I'll report its findings and
+  any fixes when it finishes.
+
+› Message from general-purpose
+  ## Review: data-quality-checks, 567db12..2b41cf1
+
+  I read the whole diff and checked it against the spec, the plan and the ledger
+  rulings. `python -m pytest -q` passes (68 tests). I ran two probe scripts
+  against throwaway temp databases, both in the scratchpad (`C:/Users/steph/AppD
+  ata/Local/Temp/claude/c--Users-steph-job-search-WPRDC-Data-Pipeline-Exercise/c
+  306bb53-65a2-4e27-b23e-91354732d007/scratchpad/probe_revert.py` and
+  `.../probe_alert.py`). I did not touch data/wprdc.duckdb and modified no repo
+  files.
+
+  ### Strengths
+  - The single materialized `dq.issue` table is a sound refinement. It is
+  simpler, it survives raw pruning, and reopening an issue just adds a row.
+  - Quarantine works per row (`build_clean` in transform.py:1562 uses `NOT IN`
+  on `source_row_number`, which is NOT NULL). The clean table takes each check's
+  action from the current `checks`, not from what was stored.
+  - Every `NOT IN` / `IN` subquery reads a column that can't be NULL (`sale_key`
+  is md5 over coalesced values; `source_row_number`), so none of them hit the
+  NULL trap. `DEEDPAGE` NULL means `has_real_deed` is false, so it never reaches
+  the successor join.
+  - The transaction is correct. DuckDB DDL inside `begin()` rolls back, and the
+  test proves the previous clean table and `dq.evaluation` survive a failure.
+  - The implementer's rulings are reasonable and I agree with all of them: the
+  row-count structural check, `current_results` without `con`, the notice
+  winning over `key_collision` on a version change, and the local imports.
+
+  ### Review Focus
+  1. **A -> B -> A:** correct when A's rows are still loaded (test passes, issue
+  fixed at B, new issue at the second A). It breaks when A was pruned in
+  between; see Important #2.
+  2. **Re-run with no new snapshot:** no-op, confirmed. Caveats: a re-fetch of
+  identical bytes is a new evaluation (Minor #1), and a rule edit then revert on
+  the same snapshot breaks things (Important #1).
+  3. **Colliding keys:** correct, tested.
+  4. **Blank RECORDDATE:** spaces are correct. Tab or other non-space whitespace
+  is not (Minor #3).
+  5. **PRICE:** `'1658.0'` gives 1658 and NULL gives NULL, correct. Edge cases
+  in Minor #4.
+
+  ### Critical
+  None.
+
+  ### Important
+
+  **1. If a check changes and then changes back on the same snapshot,
+  quarantined records drop off the steward's list.** (wprdc/dq.py:1239-1243 in
+  the diff)
+  - **Cause:** `evaluate` does `continue` when a `check_run` row already exists
+  for (eval, check, version), so `update_issues` is skipped.
+  - **Scenario (reproduced):** transform with CHECKS, then with
+  `record_date_missing.where` edited, then with the edit reverted, all on the
+  same snapshot. The result:
+    - row 2 is quarantined (missing from `clean.property_sales`);
+    - `dq.v_open_issues` is empty;
+    - the only issue is `resolved / rule_changed`.
+
+    The steward can't see a record the pipeline is holding out. It reappears,
+  under a new `first_seen_at`, only when the next snapshot arrives.
+  - **Same root cause:**
+    - Un-retiring a check on the same snapshot does the same thing, because
+  `retire_issues` closed the issues.
+    - An action-only change on the same snapshot leaves `dq.issue.action`, which
+  `v_issues` shows as the "current action", stale (e.g. still `quarantine`
+  after the record was released into clean).
+  - **Fix:** call `update_issues(con, eval_id, check)` even when the check run
+  already exists. It is idempotent: on a repeat call nothing is "gone", the
+  carry-forward rewrites the same values and nothing is inserted. The re-run
+  no-op still holds. Add a regression test for the edit/revert case.
+
+  **2. If the newest snapshot was pruned, the transform silently falls back to
+  an older one.** (wprdc/transform.py:1511-1514 in the diff, `WHERE pruned_at IS
+  NULL`)
+  - **Scenario:** A, then B, then `load_raw --prune-keep 1` (A pruned), then the
+  source returns to A. Ingest records a new `fetched` row for A.
+  `load_snapshot` sees A's catalog row and returns `already_loaded` without
+  reloading the rows.
+  - **What happens:** `build_typed` skips A because it is pruned and picks B.
+  B's `(snapshot_id, as_of)` was already evaluated, so the run succeeds and
+  changes nothing. The clean table and issue list stay at B while the source and
+  `raw.property_sales_latest` are at A.
+  - **Spec conflict:** the spec says the run must evaluate the latest snapshot,
+  and that an older snapshot is never evaluated after a newer one ("skipped").
+  - **Fix:** select the latest snapshot without the pruned filter. If that
+  snapshot is pruned, raise `TransformError` ("latest snapshot's rows are
+  pruned; run `load_raw --rebuild`"). That is a structural failure: the run is
+  recorded as failed and the previous clean table stays. Optionally also make
+  `load_snapshot` reload a pruned snapshot (that is pre-existing load_raw code).
+  Add an A -> B -> prune -> A test.
+
+  ### Minor
+
+  **1. A re-fetch of byte-identical data creates a new evaluation.**
+  (dq.py:1224, keyed on `(snapshot_id, as_of)`)
+  - **When:** ingest `--force`, or CKAN bumping `last_modified` without changing
+  content.
+  - **Effect:** each such re-fetch adds a fresh copy of `check_result` (about 2k
+  rows) and `check_run`. The plan chose this; the spec says results are written
+  "once per (snapshot, check version)". It is harmless apart from growth and
+  duplicate points in the rate history.
+  - **Fix if wanted:** skip when the most recent evaluation (by `as_of`) has the
+  same `snapshot_id`. That still re-evaluates A -> B -> A.
+
+  **2. Choosing the previous check run for an alert depends on unspecified row
+  order.** (dq.py:1360-1366)
+  - **Scenario:** the version changes and is re-evaluated on the same snapshot,
+  so one evaluation has two versions. The next evaluation's `prev` query ties on
+  `(as_of, eval_id)`, and the row returned depends on scan order. It worked in
+  my probe because of insertion order.
+  - **Risk if it picks the old version:** a duplicate `definition_changed`
+  notice and a missed `rate_jump`.
+  - **Fix:** add `(c.check_version = ?) DESC` to the ORDER BY tie-break.
+
+  **3. Whitespace other than spaces in RECORDDATE counts as invalid, not
+  missing.** (transform.py:1482, `trim()` only strips spaces)
+  - **Example:** `'\t'` gives `record_date_text = '\t'` and fails
+  `record_date_invalid` (verified).
+  - **Fix:** `nullif(regexp_replace(x, '^\s+|\s+$', '', 'g'), '')`. Unlikely in
+  this data.
+
+  **4. PRICE edge cases.**
+  - `'1658.5'` rounds to 1659 (verified).
+  - `'1,658'` and other bad values become NULL silently; no check reports an
+  unparseable PRICE.
+  - Fix: optionally add a `price_invalid` flag (`PRICE` present and `price IS
+  NULL`).
+
+  **5. The `key_collision` alert body gives a query but does not list the
+  keys.** (dq.py:1387-1394)
+  - The spec says "The alert lists the colliding keys."
+  - Fix: append up to N `PARID/DEEDBOOK/DEEDPAGE/SALEDATE` values from
+  `check_result`.
+
+  **6. SQL built by string interpolation.**
+  - `current_results` (dq.py:1268) and the alert body (dq.py:1392) quote `c.id`,
+  `c.version` and `c.action` with `'...'`.
+  - `check.where` is spliced in raw (dq.py:1247).
+  - All of it is engineer-owned code, so this is acceptable. But an apostrophe
+  in a check id would break the SQL. A one-line assert in `Check.__post_init__`
+  (id matches `^[a-z_]+$`, action is in the allowed set) closes it.
+
+  **7. Errors in `transform` before and after the commit.**
+  (transform.py:1577-1583)
+  - If `con.rollback()` itself raises (e.g. the connection was invalidated), it
+  hides the original exception.
+  - A `notify` failure after the commit marks the run `failed` even though the
+  data was committed. Remaining alerts stay pending, which is fine.
+  - Fix: wrap the rollback in try/except that re-raises the original; consider
+  catching notify errors per alert.
+
+  ### Declined to judge
+  - `possible_duplicate` struct `IN` treats NULL fields as equal. Two no-deed
+  rows with the same PARID and a NULL SALEDATE are flagged as duplicates
+  (verified). Arguably right, and those rows are quarantined by
+  `sale_date_invalid` anyway.
+  - A snapshot with a NULL PARID or whitespace-variant DEEDBOOK resolves as
+  `removed` rather than `replaced`. This follows the spec's literal "same PARID,
+  DEEDBOOK, DEEDPAGE" rule on unchanged values.
+  - A 0-row or drastically shrunken snapshot mass-resolves every issue as
+  `removed` and empties the clean table. Ingest's check against CKAN's row total
+  guards this, and the spec doesn't define it as structural.
+  - The `definition_changed` notice suppressing a real `key_collision` on the
+  same evaluation is the implementer's Task 5 ruling, consistent with the spec's
+  anti-goal. Accepted.
+  - Splicing `check.where` in raw is an injection surface only for the engineer,
+  by design.
+  - `check_run` omits the spec's `evaluated_at` and `run_id`; both are reachable
+  through `dq.evaluation`. Accepted as part of the plan's refinement.
+
+  ### Assessment
+  **Ready to merge: with fixes.** The core is solid and every Review Focus case
+  passes as tested. Important #1 (reproduced) and #2 can each leave the steward
+  list or the clean table out of step with the source while the run reports
+  success. Both are small fixes and should be fixed with tests before merging.
+
+● The reviewer found no Critical issues. I've re-graded its findings by their
+  effect on the people using this:
+
+  - Important #1 (a check changed and changed back on the same snapshot hides
+    quarantined records from the steward): fixing.
+  - Important #2 (the newest snapshot pruned, so the transform silently uses an
+    older one): fixing.
+  - Minor #5 (the key-collision alert doesn't list the keys): the design
+    explicitly requires the keys, so I'm treating it as Important and fixing it.
+  - Minor #2 (an ambiguous choice of the previous run for alerts): a wrong pick
+    could miss a rate alert, which is the core job, so I'm treating it as
+    Important too. It's a one-line fix.
+  - The rest: deferred, and listed at the end.
+
+  First I'll write a failing test for each.
+
+● Bash(cd "c:/Users/steph/job-search/WPRDC-Data-Pipeline-Exercise" && cat >>
+      tests/test_dq_issues.py <<'EOF'…)
+  ⎿  Updated tests\test_dq_alerts.py (+16 -0)
+      74      out = capsys.readouterr().out
+      75      assert alert["subject"] in out and "dq.check_result" in out
+      76      assert pending_alerts(con) == []
+      77 +                                                               
+      78 +                                                               
+      79 +def test_key_collision_body_lists_keys(con):                   
+      80 +    snap(con, "s1", [sale(), sale()], 0)                       
+      81 +    body = con.execute("SELECT body FROM dq.alert").fetchone()[
+         +0]                                                             
+      82 +    assert "1010G00075000000 / 18965 / 534 / 2022-06-21" in bod
+         +y                                                              
+      83 +                                                               
+      84 +                                                               
+      85 +def test_previous_run_prefers_current_version_on_same_evaluatio
+         +n(con):                                                        
+      86 +    changed = [replace(c, where="record_date_text IS NULL OR fa
+         +lse") if c.id == "record_date_missing" else c                  
+      87 +               for c in CHECKS]                                
+      88 +    snap(con, "s1", rows(1), 0, checks=changed)     # evaluated
+         + at the edited version first                                   
+      89 +    evaluate(con, "r", build_typed(con), CHECKS)    # then at t
+         +he current version, same snapshot                              
+      90 +    snap(con, "s2", rows(12), 1)                               
+      91 +    kinds = [a[0] for a in alerts(con) if a[1] == "record_date_
+         +missing"]                                                      
+      92 +    assert kinds == ["definition_changed", "rate_jump"]        
+  ⎿  Updated tests\test_dq_issues.py (+14 -0)
+       92      refetch(con, "A", 2)
+       93      evaluate(con, "r", build_typed(con), CHECKS)
+       94      assert [r[:3] for r in issues(con, MISSING)] == [("resolve
+           d", "fixed", at(0)), ("open", None, at(2))]
+       95 +                                                              
+       96 +                                                              
+       97 +def test_rule_edit_then_revert_on_same_snapshot_reopens(con): 
+       98 +    snap(con, "s1", [sale(RECORDDATE=None)], 0)               
+       99 +    point = build_typed(con)                                  
+      100 +    evaluate(con, "r", point, with_check(MISSING, where="recor
+          +d_date_text IS NULL AND false"))                              
+      101 +    evaluate(con, "r", point, CHECKS)                         
+      102 +    assert [r[:2] for r in issues(con, MISSING)] == [("resolve
+          +d", "rule_changed"), ("open", None)]                          
+      103 +                                                              
+      104 +                                                              
+      105 +def test_action_change_on_same_snapshot_updates_issue(con):   
+      106 +    snap(con, "s1", [sale(RECORDDATE=None)], 0)               
+      107 +    evaluate(con, "r", build_typed(con), with_check(MISSING, a
+          +ction="flag"))                                                
+      108 +    assert [r[5] for r in issues(con, MISSING)] == ["flag"]   
+  ⎿  Updated tests\test_transform.py (+13 -0)
+      105      c = duckdb.connect(str(db))
+      106      assert c.execute("SELECT command, status FROM ops.fetch_ru
+           n").fetchall() == [("transform", "succeeded")]
+      107      c.close()
+      108 +                                                              
+      109 +                                                              
+      110 +def test_pruned_latest_snapshot_fails_instead_of_falling_back(
+          +con):                                                         
+      111 +    from tests.dq_fixtures import refetch                     
+      112 +    from wprdc.load_raw import prune                          
+      113 +    make_snapshot(con, "A", [sale()], 0)                      
+      114 +    make_snapshot(con, "B", [sale(DEEDPAGE="2")], 1)          
+      115 +    transform(con, "r1")                                      
+      116 +    prune(con, keep=1)                 # A's rows leave the DB
+          +; its CSV stays                                               
+      117 +    refetch(con, "A", 2)               # the source goes back 
+          +to A                                                          
+      118 +    with pytest.raises(TransformError, match="pruned"):       
+      119 +        transform(con, "r2")                                  
+      120 +    assert con.execute(f"SELECT any_value(snapshot_id) FROM {C
+          +LEAN}").fetchone() == ("B",)                                  
+
+● Agent "Review data quality branch" finished · 3m 16s
+
+● Three of the four new tests fail as expected, but the tie-break test already
+  passes since the winning row depends on scan order (effectively insertion
+  order), so I can't make it fail reliably. I'll keep it as a guard, apply the
+  one-line fix anyway, and note that this test was never observed failing.
+
+● Update(wprdc\dq.py)
+  ⎿  Added 4 lines
+      37              "SELECT 1 FROM dq.check_run WHERE eval_id = ? AND c
+          heck_id = ? AND check_version = ?",
+      38              [eval_id, check.id, check.version]).fetchone()
+      39          if done:
+      40 +            # Results exist, but the issue list may have moved 
+         +on (the rule was                                               
+      41 +            # edited and reverted, the check un-retired, or its
+         + action changed);                                              
+      42 +            # update_issues is idempotent, so bring the list ba
+         +ck in line.                                                    
+      43 +            update_issues(con, eval_id, check)                 
+      44              continue
+      45          con.execute(
+      46              f"""INSERT INTO dq.check_result
+
+● Update(wprdc\dq.py)
+  ⎿  Added 2 lines, removed 2 lines
+      163             FROM dq.check_run c JOIN dq.evaluation e USING (eva
+           l_id)
+      164             WHERE c.check_id = ? AND NOT (c.eval_id = ? AND c.c
+           heck_version = ?)
+      165               AND (e.as_of < ? OR c.eval_id = ?)
+      166 -           ORDER BY e.as_of DESC, c.eval_id DESC LIMIT 1""",  
+      167 -        [check.id, eval_id, check.version, as_of, eval_id]).fe
+          -tchone()                                                      
+      166 +           ORDER BY e.as_of DESC, c.eval_id DESC, (c.check_ver
+          +sion = ?) DESC LIMIT 1""",                                    
+      167 +        [check.id, eval_id, check.version, as_of, eval_id, che
+          +ck.version]).fetchone()                                       
+      168      prev_version, prev_n, prev_rate, prev_snapshot = prev or (
+           None, None, None, None)
+      169  
+      170      where = f"(snapshot {snapshot_id[:8]}, {as_of:%Y-%m-%d})"
+
+● Update(wprdc\dq.py)
+  ⎿  Added 10 lines, removed 2 lines
+      185  
+      186      def fmt(count, r):
+      187          return "none" if count is None else f"{count:,} ({r:.2
+           %})"
+      188 -    body = "\n".join([                                        
+      188 +    lines = [                                                 
+      189          f"Check:     {check.id} ({check.description}), action 
+           {check.action}, version {check.version}",
+      190          f"Previous:  {fmt(prev_n, prev_rate)} in snapshot {pre
+           v_snapshot or '-'}",
+      191          f"Now:       {fmt(n, rate)} in snapshot {snapshot_id},
+            fetched {as_of:%Y-%m-%d %H:%M} UTC",
+      192          "Failures:",
+      193          f"  SELECT * FROM dq.check_result WHERE eval_id = {eva
+           l_id} "
+      194          f"AND check_id = '{check.id}' AND check_version = '{ch
+           eck.version}';",
+      195 -    ])                                                        
+      195 +    ]                                                         
+      196 +    if kind == "key_collision":                               
+      197 +        keys = con.execute(                                   
+      198 +            """SELECT DISTINCT PARID, DEEDBOOK, DEEDPAGE, SALE
+          +DATE FROM dq.check_result                                     
+      199 +               WHERE eval_id = ? AND check_id = ? AND check_ve
+          +rsion = ? ORDER BY ALL LIMIT 20""",                           
+      200 +            [eval_id, check.id, check.version]).fetchall()    
+      201 +        lines += ["Colliding keys (PARID / DEEDBOOK / DEEDPAGE
+          + / SALEDATE, first 20):"]                                     
+      202 +        lines += ["  " + " / ".join(str(v) for v in key) for k
+          +ey in keys]                                                   
+      203 +    body = "\n".join(lines)                                   
+      204      inserted = con.execute(
+      205          """INSERT INTO dq.alert (created_at, run_id, eval_id, 
+           snapshot_id, check_id, check_version,
+      206                                   kind, previous_rate, new_rate
+           , previous_n, new_n, subject, body)
+
+● Update(wprdc\transform.py)
+  ⎿  Added 8 lines, removed 3 lines
+      80  def build_typed(con: duckdb.DuckDBPyConnection) -> EvalPoint:
+      81      """(Re)build clean.property_sales_typed from the latest sna
+          pshot."""
+      82      latest = con.execute(
+      83 -        """SELECT snapshot_id, last_fetched_at, CAST(first_fetc
+         -hed_at AS DATE), row_count                                     
+      84 -           FROM raw.v_snapshots WHERE pruned_at IS NULL        
+      83 +        """SELECT snapshot_id, last_fetched_at, CAST(first_fetc
+         +hed_at AS DATE), row_count, pruned_at                          
+      84 +           FROM raw.v_snapshots                                
+      85             ORDER BY last_fetched_at DESC LIMIT 1""").fetchone()
+      86      if latest is None:
+      87          raise TransformError("no raw snapshot loaded; run pytho
+          n -m wprdc.load_raw first")
+      88 -    point = EvalPoint(*latest)                                 
+      88 +    if latest[4] is not None:                                  
+      89 +        # The source went back to a snapshot whose rows were pr
+         +uned. Never fall                                               
+      90 +        # back to an older snapshot: the clean table would sile
+         +ntly be stale.                                                 
+      91 +        raise TransformError(f"latest snapshot {latest[0][:12]}
+         + has been pruned; "                                            
+      92 +                             "run python -m wprdc.load_raw --re
+         +build")                                                        
+      93 +    point = EvalPoint(*latest[:4])                             
+      94      text_cols = ",\n            ".join(f"{_text(src)} AS {dst}"
+           for src, dst in TEXT_COLUMNS.items())
+      95      con.execute(
+      96          f"""
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All 73 tests pass. I'll check the real database still runs cleanly through the
+  new code path, then commit.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The real database is unchanged by the re-run: 2,021 issues, 0 alerts. Now I'll
+  clean up the plan's scratch workspace and finish the branch.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Skill(superpowers:finishing-a-development-branch)
+  ⎿  Successfully loaded skill
+● I'm using the finishing-a-development-branch skill to complete this work. The
+  suite passed on this exact tree (73 tests). This is a normal repository, so
+  there's no worktree to clean up, and the branch split from main.
+
+  What's on data-quality-checks (8 commits, nothing pushed):
+  - wprdc/checks.py: the seven checks
+  - wprdc/dq.py: evaluation, the issue lifecycle and alerts
+  - wprdc/transform.py: the typed and clean tables, and the python -m
+    wprdc.transform command
+  - sql/clean_schema.sql and sql/dq_schema.sql
+  - 41 new tests
+
+  Review fixes, each with a test that failed first except where noted:
+  - Re-checking the same snapshot after you edit and revert a rule, or change
+    only its action, now brings the steward's list back in line. Before,
+    quarantined records could drop off the list.
+  - If the newest snapshot has been pruned, the transform now fails clearly and
+    tells you to run load_raw --rebuild. Before, it silently fell back to an
+    older snapshot.
+  - Key-collision alerts now list the colliding keys, as the design says they
+    should.
+
+  Decisions I made on your behalf, and what each costs if wrong:
+  - I built on a branch in your main folder rather than a separate checkout,
+    because the database and CSVs live here. Cost if wrong: none.
+  - build_typed also fails the run if the typed table's row count doesn't match
+    the snapshot's. Cost if wrong: one extra check.
+  - current_results doesn't take the database connection it never used. Cost if
+    wrong: trivial.
+  - When a check's logic changes, the "definition changed" notice takes
+    precedence over a key-collision alert. Cost if wrong: a real collision on
+    the same run as an edit to that check is reported only as a notice.
+  - I verified Task 7 against a copy, because your DuckDB session had the file
+    open. It has since run on the real database.
+  - I raised two of the reviewer's Minor findings to Important: the missing keys
+    in the alert, and the tie-break.
+  - The tie-break fix's test passed even before the fix, because the bug depends
+    on row order, so it may not catch a future regression.
+
+  Deferred minors:
+  - Re-downloading identical bytes (ingest --force) creates a new evaluation, so
+    the rate history gets duplicate points.
+  - A RECORDDATE of only tab characters counts as invalid rather than missing.
+  - PRICE 1658.5 rounds to 1659, and an unparseable PRICE becomes NULL with no
+    check flagging it.
+  - Check ids and actions aren't validated, so an apostrophe in an id would
+    break the generated SQL.
+  - A failing rollback can hide the original error, and a notification failure
+    after commit marks the run as failed.
+
+  Implementation complete. What would you like to do?
+
+  1. Merge back to main locally
+  2. Push and create a Pull Request
+  3. Keep the branch as-is (I'll handle it later)
+
+  Which option?
+
+> 1
+
+● Bash(cd "c:/Users/steph/job-search/WPRDC-Data-Pipeline-Exercise" && git
+      checkout -q main && git pull -q 2>&1 | tail -2; git merge --no-edit
+      data-quality-checks 2>&1…)
+  ⎿  Updated sql\clean_schema.sql (+7 -7)
+  ⎿  Updated sql\dq_schema.sql (+111 -111)
+  ⎿  Updated sql\ops_schema.sql (+126 -126)
+  ⎿  Updated tests\dq_fixtures.py (+68 -68)
+  ⎿  Updated tests\test_checks.py (+23 -23)
+  ⎿  … 8 more files changed
+  ⎿  (a git step in this command can move the working tree, so these may be
+     its changes, not edits) (ctrl+o to expand)
+  ⎿  (timeout 5m)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The data quality work is now on main and all 73 tests pass. It isn't pushed
+  yet: local main is 9 commits ahead of GitHub.
+
+  - The merge was a fast-forward, so the commit history stays linear.
+  - I deleted the data-quality-checks branch.
+  - Your real database already has the clean and data quality tables from the
+    earlier run.
+
+  Want me to push the 9 commits to GitHub?
+
+  Remaining before the Nov 2 deadline:
+  1. Choose the analytical question and build the output table from
+     clean.property_sales.
+  2. Add a single python -m wprdc.pipeline command that runs ingest, load_raw
+     and transform in order.
+  3. Write the README.
+  4. Make the repository public.
+
+> yes, push it
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● I pushed the 9 commits to GitHub, so main there now matches your local copy.
+  It includes the design, the plan, the data quality checks and the review
+  fixes.
+
+  Next up is choosing your analytical question so we can build the output table
+  from clean.property_sales.
