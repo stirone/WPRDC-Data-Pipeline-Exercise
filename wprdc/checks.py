@@ -21,6 +21,8 @@ import hashlib
 from dataclasses import dataclass
 from typing import Literal
 
+from wprdc.sale_classes import mapped_codes_sql
+
 # A rate jump alerts the engineer when the failure rate more than doubles AND
 # at least this many more records fail. Starting values, to tune with history.
 ALERT_RATE_FACTOR = 2.0
@@ -95,6 +97,27 @@ CHECKS: list[Check] = [
         where="""sale_key IN (
                      SELECT sale_key FROM typed
                      GROUP BY 1 HAVING count(*) > 1)""",
+        alert="any",
+    ),
+    # A new county sale code would otherwise land in sale_class 'unclassified'
+    # unnoticed. The condition is built from wprdc/sale_classes.py, so changing
+    # the mapping gives this check a new version (a definition_changed notice).
+    Check(
+        id="sale_code_unmapped",
+        description="SALECODE missing or not in wprdc/sale_classes.py",
+        action="flag",
+        where=f"sale_code IS NULL OR sale_code NOT IN ({mapped_codes_sql()})",
+        alert="any",
+    ),
+    # analytics.parcel keeps one location per parcel; true in every snapshot so far.
+    Check(
+        id="parcel_location_varies",
+        description="PARID has more than one municipality or school district in the snapshot",
+        action="flag",
+        where="""PARID IN (
+                     SELECT PARID FROM typed GROUP BY 1
+                     HAVING count(DISTINCT municipality_code) > 1
+                         OR count(DISTINCT school_code) > 1)""",
         alert="any",
     ),
 ]

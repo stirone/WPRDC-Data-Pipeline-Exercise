@@ -118,3 +118,17 @@ def test_pruned_latest_snapshot_fails_instead_of_falling_back(con):
     with pytest.raises(TransformError, match="pruned"):
         transform(con, "r2")
     assert con.execute(f"SELECT any_value(snapshot_id) FROM {CLEAN}").fetchone() == ("B",)
+
+
+def test_unmapped_sale_code_flagged(con):
+    make_snapshot(con, "s1", [sale(), sale(DEEDPAGE="2", SALECODE="ZZ")])
+    result = transform(con, "r1")
+    assert clean_rows(con) == [(1, []), (2, ["sale_code_unmapped"])]
+    assert len(result["alerts"]) == 1
+
+
+def test_parcel_location_varies_flagged(con):
+    make_snapshot(con, "s1", [sale(), sale(DEEDPAGE="2", MUNICODE="946"),
+                              sale(PARID="0001A00001000000", DEEDPAGE="3")])
+    transform(con, "r1")
+    assert clean_rows(con) == [(1, ["parcel_location_varies"]), (2, ["parcel_location_varies"]), (3, [])]

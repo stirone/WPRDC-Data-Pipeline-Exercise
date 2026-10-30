@@ -3,7 +3,7 @@ from wprdc.checks import CHECKS, Check
 
 def test_check_ids_unique():
     ids = [c.id for c in CHECKS]
-    assert len(ids) == len(set(ids)) == 7
+    assert len(ids) == len(set(ids)) == 9
 
 
 def test_version_ignores_whitespace_action_and_description():
@@ -21,6 +21,8 @@ def test_initial_actions():
     assert {i for i, c in by_id.items() if c.action == "quarantine"} == {
         "sale_date_invalid", "record_date_invalid", "record_date_future", "record_date_missing"}
     assert by_id["key_not_unique"].alert == "any"
+    for new in ("sale_code_unmapped", "parcel_location_varies"):
+        assert (by_id[new].action, by_id[new].alert) == ("flag", "any")
 
 
 def test_checks_refer_to_typed_table_by_alias():
