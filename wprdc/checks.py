@@ -1,7 +1,8 @@
 """Data quality checks for property sales, run by python -m wprdc.transform.
 
-Each check is a SQL condition over clean.property_sales_typed that selects the
-failing records. Records failing a "quarantine" check are held out of
+Each check is a SQL condition over staging.property_sales_typed that selects the
+failing records; a subquery refers to that table as `typed`, so the version
+does not depend on where the table lives. Records failing a "quarantine" check are held out of
 clean.property_sales; records failing a "flag" check stay in it, with the check
 id in dq_flags. Either way they appear in the data steward's list,
 dq.v_open_issues, until a later snapshot shows the problem gone.
@@ -84,7 +85,7 @@ CHECKS: list[Check] = [
         description="No real deed reference, and another such record has the same PARID and SALEDATE",
         action="flag",
         where="""NOT has_real_deed AND (PARID, SALEDATE) IN (
-                     SELECT (PARID, SALEDATE) FROM clean.property_sales_typed
+                     SELECT (PARID, SALEDATE) FROM typed
                      WHERE NOT has_real_deed GROUP BY ALL HAVING count(*) > 1)""",
     ),
     Check(
@@ -92,7 +93,7 @@ CHECKS: list[Check] = [
         description="Record key (PARID, DEEDBOOK, DEEDPAGE, SALEDATE) shared with another record",
         action="flag",
         where="""sale_key IN (
-                     SELECT sale_key FROM clean.property_sales_typed
+                     SELECT sale_key FROM typed
                      GROUP BY 1 HAVING count(*) > 1)""",
         alert="any",
     ),

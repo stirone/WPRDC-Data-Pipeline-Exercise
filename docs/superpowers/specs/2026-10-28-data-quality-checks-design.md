@@ -54,7 +54,7 @@ profiling this dataset.
 
 ```
 raw.property_sales (latest snapshot)
-   └─ clean.property_sales_typed   typed + trimmed, every row, with its key
+   └─ staging.property_sales_typed typed + trimmed, every row, with its key
         ├─ checks (wprdc/checks.py) ──> dq.check_result, dq.check_run
         └─ clean.property_sales        typed rows minus quarantined ones,
                                         with a flags column
@@ -85,7 +85,11 @@ or all zeros.
 
 ## Typing
 
-`clean.property_sales_typed` has one row per row of the latest snapshot:
+`staging.property_sales_typed` has one row per row of the latest snapshot. It
+is in a `staging` schema, not `clean`, because it still holds the records the
+checks quarantine: it is an intermediate step, not the table for analysis.
+(Renamed from `clean.property_sales_typed` on 2026-10-30; see
+`sql/migrations/2026-10-30-staging-rename.sql`.)
 
 - the four key columns, unchanged, plus `sale_key` (a hash of them, for joins)
 - `sale_date`, `record_date`: `TRY_CAST` to DATE (null if unparseable)
@@ -106,7 +110,8 @@ Check(
     id="record_date_missing",
     description="RECORDDATE is null",
     action="quarantine",          # or "flag"
-    where="record_date IS NULL",  # SQL over clean.property_sales_typed
+    where="record_date IS NULL",  # SQL over staging.property_sales_typed;
+                                  # a subquery calls it `typed`
     retired=False,
 )
 ```
@@ -222,7 +227,7 @@ version), so re-running the transform on the same snapshot adds nothing.
 
 ## Clean table
 
-`clean.property_sales` = `clean.property_sales_typed` minus records failing
+`clean.property_sales` = `staging.property_sales_typed` minus records failing
 any check whose action in `checks.py` is currently `quarantine`, plus `dq_flags` (list of failing `flag` check
 ids, empty if none). Rebuilt in full each run from the latest snapshot, inside
 one transaction.

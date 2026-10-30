@@ -2,7 +2,7 @@
 
     python -m wprdc.transform
 
-clean.property_sales_typed holds every row of the snapshot, typed and trimmed,
+staging.property_sales_typed holds every row of the snapshot, typed and trimmed,
 keyed by (PARID, DEEDBOOK, DEEDPAGE, SALEDATE) as delivered. The checks in
 wprdc/checks.py run against it; clean.property_sales is the typed rows minus
 quarantined ones, with dq_flags listing the flag checks each row fails.
@@ -22,7 +22,7 @@ import duckdb
 from wprdc.checks import CHECKS, Check
 from wprdc.db import connect, run_context
 
-TYPED = "clean.property_sales_typed"
+TYPED = "staging.property_sales_typed"
 CLEAN = "clean.property_sales"
 
 
@@ -78,7 +78,7 @@ TEXT_COLUMNS = {
 
 
 def build_typed(con: duckdb.DuckDBPyConnection) -> EvalPoint:
-    """(Re)build clean.property_sales_typed from the latest snapshot."""
+    """(Re)build staging.property_sales_typed from the latest snapshot."""
     latest = con.execute(
         """SELECT snapshot_id, last_fetched_at, CAST(first_fetched_at AS DATE), row_count, pruned_at
            FROM raw.v_snapshots

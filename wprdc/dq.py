@@ -44,8 +44,9 @@ def evaluate(con: duckdb.DuckDBPyConnection, run_id: str, point: EvalPoint,
             continue
         con.execute(
             f"""INSERT INTO dq.check_result
+                WITH typed AS (FROM {TYPED})
                 SELECT ?, ?, ?, ?, source_row_number, sale_key, PARID, DEEDBOOK, DEEDPAGE, SALEDATE
-                FROM {TYPED} WHERE {check.where}""",
+                FROM typed WHERE {check.where}""",
             [eval_id, check.id, check.version, check.action])
         n_failing = con.execute(
             "SELECT count(*) FROM dq.check_result WHERE eval_id = ? AND check_id = ? AND check_version = ?",
@@ -79,7 +80,7 @@ def update_issues(con: duckdb.DuckDBPyConnection, eval_id: int, check: Check) ->
     """Open, carry forward and resolve this check's issues for one evaluation.
 
     An issue that stops failing is resolved with the outcome decided now, while
-    this snapshot is in clean.property_sales_typed:
+    this snapshot is in staging.property_sales_typed:
       rule_changed  record still present, but the check's version changed
       fixed         record still present and passes
       replaced      record gone, a record with the same real deed is present
