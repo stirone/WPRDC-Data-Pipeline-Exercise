@@ -8,7 +8,7 @@ CREATE SCHEMA IF NOT EXISTS ops;
 -- One row per script execution (ingest, probe, or ad-hoc dev session).
 CREATE TABLE IF NOT EXISTS ops.fetch_run (
     run_id            VARCHAR PRIMARY KEY,
-    command           VARCHAR NOT NULL,      -- ingest | probe | adhoc | transform
+    command           VARCHAR NOT NULL,      -- ingest | probe | adhoc | transform | analytics
     started_at        TIMESTAMPTZ NOT NULL,
     finished_at       TIMESTAMPTZ,
     status            VARCHAR NOT NULL,      -- running | succeeded | failed
