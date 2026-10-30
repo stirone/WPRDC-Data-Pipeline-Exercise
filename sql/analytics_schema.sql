@@ -3,6 +3,7 @@
 -- rising as the population ages?". Rebuilt in full by
 -- python -m wprdc.analytics (see wprdc/analytics.py), so only the schema is
 -- declared here:
+--   analytics.build_info        the snapshot (and download date) built from
 --   analytics.sales             fact: one row per clean sale, with sale_class
 --   analytics.parcel            one row per PARID: address, municipality, school
 --   analytics.municipality      175 codes, wards rolled up to their city

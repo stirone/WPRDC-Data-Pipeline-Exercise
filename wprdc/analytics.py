@@ -24,7 +24,8 @@ from wprdc.transform import CLEAN
 
 SALES = "analytics.sales"
 OUTPUT = "analytics.family_transfers_by_year"
-TABLES = ("analytics.municipality", "analytics.school_district", "analytics.parcel",
+BUILD_INFO = "analytics.build_info"
+TABLES = (BUILD_INFO, "analytics.municipality", "analytics.school_district", "analytics.parcel",
           "analytics.sale_type", "analytics.instrument_type", SALES)
 
 # "1st Ward - PITTSBURGH" -> PITTSBURGH. Matched on the whole name: code 911 is
@@ -47,6 +48,17 @@ def _descriptions(code: str, desc: str) -> str:
             SELECT {code}, {desc}, count(*) AS n FROM {CLEAN}
             WHERE {code} IS NOT NULL GROUP BY ALL)
         QUALIFY row_number() OVER (PARTITION BY {code} ORDER BY n DESC, {desc}) = 1"""
+
+
+def _build_build_info(con: duckdb.DuckDBPyConnection) -> None:
+    """The snapshot this build came from. The output view reads its cutoff year
+    here, not from the clean layer, so a later transform without an analytics
+    rebuild does not change the output."""
+    con.execute(
+        f"""
+        CREATE OR REPLACE TABLE {BUILD_INFO} AS
+        SELECT max(snapshot_id) AS snapshot_id, max(download_date) AS download_date FROM {CLEAN}
+        """)
 
 
 def _build_municipality(con: duckdb.DuckDBPyConnection) -> None:
@@ -141,7 +153,7 @@ def _create_output_view(con: duckdb.DuckDBPyConnection) -> None:
                    count(*) FILTER (WHERE sale_class = 'estate_family') AS estate_family_transfers,
                    count(*) FILTER (WHERE sale_code = '{NOT_ANALYZED_CODE}') AS not_analyzed_transfers
             FROM {SALES}
-            WHERE sale_year < (SELECT year(max(download_date)) FROM {CLEAN})
+            WHERE sale_year < (SELECT year(download_date) FROM {BUILD_INFO})
             GROUP BY sale_year
         )
         SELECT sale_year, all_transfers,
@@ -161,6 +173,7 @@ def build_analytics(con: duckdb.DuckDBPyConnection) -> dict:
         raise AnalyticsError(f"{CLEAN} does not exist; run python -m wprdc.transform first")
     con.begin()
     try:
+        _build_build_info(con)
         _build_municipality(con)
         _build_school_district(con)
         _build_parcel(con)

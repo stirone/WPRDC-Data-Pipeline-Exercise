@@ -1,3 +1,5 @@
+from datetime import date
+
 import duckdb
 import pytest
 
@@ -135,3 +137,15 @@ def test_main_logs_an_analytics_run(tmp_path, monkeypatch, capsys):
     assert c.execute("SELECT command, status FROM ops.fetch_run ORDER BY started_at").fetchall() == [
         ("transform", "succeeded"), ("analytics", "succeeded")]
     c.close()
+
+
+def test_view_frozen_at_build_time(con):
+    build(con, [in_2025(), sale(DEEDPAGE="2", SALEDATE="2026-03-01", RECORDDATE="2026-03-10")])
+    before = con.execute(f"SELECT * FROM {OUTPUT}").fetchall()
+    # transform loads a snapshot downloaded a year later; analytics is not rebuilt
+    make_snapshot(con, "s2", [in_2025(), sale(DEEDPAGE="2", SALEDATE="2026-03-01", RECORDDATE="2026-03-10")],
+                  minutes=365 * 24 * 60)
+    transform(con, "r2")
+    assert con.execute(f"SELECT * FROM {OUTPUT}").fetchall() == before
+    assert con.execute("SELECT snapshot_id, download_date FROM analytics.build_info").fetchall() == [
+        ("s1", date(2026, 10, 28))]
