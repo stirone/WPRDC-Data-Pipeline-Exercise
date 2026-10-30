@@ -1,0 +1,1714 @@
+
+> <browser_instruction># Claude in Chrome browser automation
+
+  You have access to browser automation tools (mcp__claude-in-chrome__*) for
+  interacting with web pages in Chrome. Follow these guidelines for effective
+  browser automation.
+
+  ## Loading deferred tools
+
+  If the mcp__claude-in-chrome__* tools are deferred (must be loaded via
+  ToolSearch before use), load every tool you expect to need in ONE ToolSearch
+  call — the select query accepts a comma-separated list — never one call per
+  tool. Start with the core set:
+
+  ToolSearch with query
+  "select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__naviga
+  te,mcp__claude-in-chrome__computer,mcp__claude-in-chrome__read_page,mcp__clau
+  de-in-chrome__tabs_create_mcp,mcp__claude-in-chrome__tabs_close_mcp"
+
+  Add task-specific tools to the same call when the task obviously needs them:
+  read_console_messages / read_network_requests for debugging, form_input for
+  forms, gif_creator for recordings, javascript_tool for page scripting.
+
+  ## GIF recording
+
+  When performing multi-step browser interactions that the user may want to
+  review or share, use mcp__claude-in-chrome__gif_creator to record them.
+
+  You must ALWAYS:
+  * Capture extra frames before and after taking actions to ensure smooth
+  playback
+  * Name the file meaningfully to help the user identify it later (e.g.,
+  "login_process.gif")
+
+  ## Console log debugging
+
+  You can use mcp__claude-in-chrome__read_console_messages to read console
+  output. Console output may be verbose. If you are looking for specific log
+  entries, use the 'pattern' parameter with a regex-compatible pattern. This
+  filters results efficiently and avoids overwhelming output. For example, use
+  pattern: "[MyApp]" to filter for application-specific logs rather than
+  reading all console output.
+
+  ## Alerts and dialogs
+
+  IMPORTANT: Do not trigger JavaScript alerts, confirms, prompts, or browser
+  modal dialogs through your actions. These browser dialogs block all further
+  browser events and will prevent the extension from receiving any subsequent
+  commands. Instead, when possible, use console.log for debugging and then use
+  the mcp__claude-in-chrome__read_console_messages tool to read those log
+  messages. If a page has dialog-triggering elements:
+  1. Avoid clicking buttons or links that may trigger alerts (e.g., "Delete"
+  buttons with confirmation dialogs)
+  2. If you must interact with such elements, warn the user first that this may
+  interrupt the session
+  3. Use mcp__claude-in-chrome__javascript_tool to check for and dismiss any
+  existing dialogs before proceeding
+
+  If you accidentally trigger a dialog and lose responsiveness, inform the user
+  they need to manually dismiss it in the browser.
+
+  ## Avoid rabbit holes and loops
+
+  When using browser automation tools, stay focused on the specific task. If
+  you encounter any of the following, stop and ask the user for guidance:
+  - Unexpected complexity or tangential browser exploration
+  - Browser tool calls failing or returning errors after 2-3 attempts
+  - No response from the browser extension
+  - Page elements not responding to clicks or input
+  - Pages not loading or timing out
+  - Unable to complete the browser task despite multiple approaches
+
+  Explain what you attempted, what went wrong, and ask how the user would like
+  to proceed. Do not keep retrying the same failing browser action or explore
+  unrelated pages without checking in first.
+
+  ## Tab context and session startup
+
+  IMPORTANT: At the start of each browser automation session, call
+  mcp__claude-in-chrome__tabs_context_mcp first to get information about the
+  user's current browser tabs. Use this context to understand what the user
+  might want to work with before creating new tabs.
+
+  Never reuse tab IDs from a previous/other session. Follow these guidelines:
+  1. Only reuse an existing tab if the user explicitly asks to work with it
+  2. Otherwise, create a new tab with mcp__claude-in-chrome__tabs_create_mcp
+  3. If a tool returns an error indicating the tab doesn't exist or is invalid,
+  call tabs_context_mcp to get fresh tab IDs
+  4. When a tab is closed by the user or a navigation error occurs, call
+  tabs_context_mcp to see what tabs are available</browser_instruction>
+
+> Let's pick up where left off.  Your last bit was "The next step is to design
+  the analytics layer, write it up as a short spec like the one for the data
+  quality checks, and then plan and build it. The three open decisions (the
+  denominator, how to treat estate deeds, and transfers that are both family
+  and estate) will come out of that design work. If you'd rather skip my
+  questions and have me draft the spec with my recommended defaults, say so.
+
+  To start: when this is finished and someone reads your README, what sentence
+  or chart about family transfers would you most like to be able to show them?"
+
+● Skill(superpowers:brainstorming)
+  ⎿  Successfully loaded skill
+
+  Recalled 1 memory (ctrl+o to expand)
+
+● We're picking up the analytics layer design. Here's what's settled so far:
+
+  - The question is how often family transfers ("love and affection" sales)
+    happen, over the years and by municipality. Your hypothesis is that they
+    rise as the population ages.
+  - The design is a star schema in a schema called analytics. It has a fact
+    table analytics.sales with a sale_class column, dimensions for parcel,
+    municipality, school district, sale type and instrument type, and small
+    views on top that answer the question.
+  - Three decisions are still open:
+    - Denominator: a share of all transfers, or a rate per 1,000 parcels.
+    - Estate deeds: their own class, or counted as family.
+    - Overlap: which class wins for the 2,810 records that are both
+      love-and-affection and fiduciary deeds.
+
+  If you'd rather skip the questions, I'll write the spec with my recommended
+  defaults.
+
+  When this is finished and someone reads your README, what sentence or chart
+  about family transfers would you most like to show them?
+
+> Estate deeds should be counted as their own class, and win out when they are
+  classified as both.  Let's go with the rate per 1000 parcels.
+
+  Searched for 2 patterns, wrote 2 memories (ctrl+o to expand)
+
+● Thanks, that settles all three decisions. Here's how they fit together:
+
+  Classes. Every transfer gets one sale_class. Fiduciary, executor,
+  administrator and trustee deeds get their own estate class. A transfer coded
+  both love-and-affection and estate deed goes to estate, which covers the 2,810
+  overlapping records. Family then means love-and-affection transfers that
+  aren't estate deeds. This also tests your hypothesis more honestly: deliberate
+  gifts to family are counted apart from property passing through an estate,
+  and the two can be shown side by side.
+
+  Denominator. Rates are family (or estate) transfers per 1,000 parcels, by year
+  and municipality. That means adding the WPRDC property assessments dataset,
+  which we haven't loaded yet. It would go through the same raw → staging →
+  clean steps as the sales data and become the parcel dimension. As a bonus, it
+  gives every parcel's property type, so we could limit rates to residential
+  parcels. That's my guess at what you'd want, but it's your call.
+
+  Two costs. First, it's a second dataset to download, check and load before the
+  Nov 2 deadline. Second, a bigger problem: the assessments dataset is a
+  snapshot of parcels as they are today. A rate for 2005 would be divided by
+  today's parcel count. In most municipalities that count barely changes, but
+  where land has been subdivided or consolidated, the early years would be a
+  little off. The README would need to say so.
+
+  Does dividing every year by today's parcel count still give you the chart you
+  want, or does that change your mind about the denominator?
+
+> We cannot download another dataset, that is not wanted by the job application
+  exercise.  Let's just look at the denominator as a share of all sales.
+
+  Wrote 1 memory (ctrl+o to expand)
+
+● Got it, so everything comes from the one sales dataset. Here's what that means
+  for the design:
+
+  Measure. A municipality's family share for a period is its family transfers
+  divided by all of its recorded transfers. That includes $1 transfers and every
+  other sale type, and estate transfers get the same treatment. The parcel
+  dimension is built only from the sales data, so it lists just the parcels that
+  changed hands at some point.
+
+  What the README has to be honest about (my calls; tell me if you disagree):
+  - A share moves when the bottom number moves. If market sales collapse, as
+    they did around 2008–2010, the family share goes up even if families didn't
+    transfer any more property. To guard against that, I'd show the raw family
+    count next to the share. Then a reader can see whether a rise means more
+    family transfers or fewer market sales.
+  - Small municipalities have few transfers a year, so their yearly shares jump
+    around. I'd compare municipalities over multi-year periods rather than
+    single years, and leave out any municipality-period with fewer than a
+    minimum number of transfers. A floor around 30 would be my default.
+  - 2026 is only partly classified (1,211 sales still "not analyzed"). I'd leave
+    it out of the trend, or mark it as partial.
+
+  What's the one sentence or chart about family transfers you'd most like a
+  README reader to see?
+
+> leave 2026 out of the analysis.  can't we estimate the number of parcels in a
+  municipality with this data?
+
+  Ran 3 shell commands, wrote 1 memory (ctrl+o to expand)
+
+● 2026 is out, so the trend covers 2012 through 2025.
+
+  We can estimate parcel counts from this data, but not well enough to divide
+  by. I checked the database: the sales data only goes back to 2012. Between
+  2012 and 2025, 303,677 different parcels show up at least once. That number is
+  still growing by about 14,000 new parcels a year and isn't leveling off. My
+  understanding is that Allegheny County has roughly 580,000 parcels in all, so
+  the sales data sees about half of them. I haven't checked that county total
+  against this data.
+
+  The missing half matters for your question in particular:
+
+  - The parcels it misses are the ones you care about. A house owned by the same
+    person since before 2012 never appears until it's transferred. Often that
+    first transfer is the family or estate transfer itself. So the parcels most
+    tied to an aging population are the ones the estimate undercounts.
+  - The error differs by place. Areas with high turnover, like city
+    neighborhoods and condos, would look nearly complete. Older suburbs with
+    long-time owners would be undercounted the most. That would distort exactly
+    the comparison between municipalities.
+  - It creates a fake trend. Dividing each year by the parcels seen so far gives
+    a denominator that grows every year. Rates would appear to fall even if
+    nothing changed.
+
+  So I'd keep share of all sales as the measure. I could still publish "parcels
+  seen in the sales data" per municipality as background, clearly labeled as not
+  a parcel count.
+
+  What's the one sentence or chart about family transfers you'd most like a
+  README reader to see?
+
+> Maybe just show a chart of the number of family transfers over time.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● A count over time is simpler and avoids the denominator problem completely.
+  Here's what I'd build around it:
+
+  The headline chart. Family transfers per year, 2012–2025, countywide. My
+  suggestion is to draw estate transfers as a second line on the same chart.
+  Your hypothesis is that property passes to family as owners age, and estate
+  transfers are the other route that takes. If both lines rise, that supports
+  the hypothesis more strongly than either line alone. A row of yearly totals
+  for all transfers sits under the chart, so a reader can tell whether family
+  transfers grew or the whole market did.
+
+  How it gets into the README. There's no charting library in the project, and
+  I'd keep it that way. My call is to have the pipeline write the chart as a
+  Mermaid chart: a few lines of text that GitHub displays as a line chart. It's
+  regenerated from analytics on every run and pasted into a marked section of
+  the README. That means no new dependency and no image files to commit. One
+  limitation: Mermaid line charts don't support a legend, so the two lines would
+  be told apart by a caption.
+
+  What stays underneath. The star schema stays as designed, with the
+  analytics.sales fact table, the dimensions and the sale_class rules you set.
+  Views on top would give:
+  - yearly counts and shares by class, countywide (these feed the chart)
+  - the same by municipality over multi-year periods, with the minimum-transfer
+    floor, for anyone who wants to dig in
+
+  The by-municipality view is my guess that you still want the "where" part of
+  the question. If the chart is all you need, I'd drop it and finish sooner.
+
+  Size. This is a project with a written design, so next I'd write the spec in
+  docs/superpowers/specs/ like the data-quality one, then a plan.
+
+  What's wrong or missing, and do you want to keep the by-municipality view?
+
+> Let's not do a chart, then, just a table.  That is also specified in the job
+  application exercise, a table.  This is about data engineering, not
+  analytics, so let's just go with that.
+
+  Searched for 3 patterns, ran 1 shell command, wrote 1 memory (ctrl+o to expand)
+
+● A table it is, and a smaller analysis means more of the work goes to the
+  engineering. Here's the analytics output now:
+
+  The output table. One row per year, 2012–2025. The columns are family
+  transfers, estate transfers and all transfers, plus family and estate as a
+  share of all transfers. The shares come free once the counts exist, and they
+  let a reader see whether a rise means more family transfers or just more
+  transfers overall. It would be a view in analytics that the pipeline queries
+  and prints. The same table could also go into the README.
+
+  What stays. The star schema stays as decided, because that's where the data
+  engineering shows: the analytics.sales fact table and the parcel,
+  municipality, school district, sale type and instrument type dimensions. The
+  hand-maintained mapping of the 47 sale codes to sale_class also stays, with
+  estate winning over family. The output table is a thin view on top. Anyone
+  could build a by-municipality version from the same tables, but I'd leave that
+  out of scope unless you want it.
+
+  What's out. Charts, per-parcel rates, extra datasets, and 2026.
+
+  I couldn't find the exercise's own wording in the repo; the README is still
+  empty. The reviewer who checks the spec, and I, need to know exactly what the
+  exercise asks for in the output table.
+
+  Could you paste the part of the exercise that describes the analytical output?
+
+> Here is the email contents describing the exercise in its entirety:
+  Thank you for applying for the position of Senior Data Engineer at Allegheny
+  County. Because of the number of qualified applicants, we are sending out the
+  following exercise before we determine who we would like to invite for a
+  one-on-one interview.
+  Please provide your submission via email no later than 11:00 am on November
+  2nd.
+  WPRDC Data Pipeline Exercise
+  Pick one dataset from the list below. Build a small, reproducible pipeline
+  that ingests it from the WPRDC CKAN API, produces a clean analytical table,
+  and tells us something useful about the data. Your completed script and
+  markdown document should be available in a public GitHub or GitLab
+  repository.
+  Requirements
+  Ingest the data programmatically (CKAN API or resource URL). No manual
+  downloads.
+  Land raw data unchanged, then transform into a cleaned/modeled layer. Use any
+  local stack you like (Python, SQL, DuckDB, SQLite, Postgres via Docker, dbt,
+  etc). No cloud accounts required.
+  Make it re-runnable. Running it twice must not duplicate or corrupt data.
+  Explain how you’d handle the dataset being updated.
+  Add data quality checks that would actually fail on bad data. Include at
+  least one check you wrote because of something you found in this dataset.
+  Produce one output table that could be used to answer a question you chose
+  (state the question).
+  Write a README.md covering decision you made in the process: the three most
+  important design decisions and the alternatives you rejected, what surprised
+  you in the data, what you’d do differently at 100x scale or with daily
+  refreshes, and what you didn’t do and why.
+  AI disclosure: AI tools are allowed. Tell us which you used and for what
+  purpose. We will ask you to walk through your code live should you progress
+  to an interview round.
+  Data Sets
+  Allegheny County Property Sale Transactions
+  Allegheny County Weights and Measures Inspections
+  Allegheny County Air Quality
+  Allegheny County Jail Census
+
+  Wrote 2 memories (ctrl+o to expand)
+
+● Thanks, that helps a lot. I've saved the requirements so later sessions can
+  check the design against them. One line changes the design: "Produce one
+  output table that could be used to answer a question you chose."
+
+  There are three ways the analytics layer could meet that:
+
+  1. The star schema we planned: a fact table, five dimensions, the sale-type
+     mapping, and a summary view. That's at least seven tables, so the README
+     would have to explain which one is "the" output table. It also pushes
+     against "small". It's the most impressive modeling, but it's more than they
+     asked for, and it's more to build and walk through by Nov 2.
+  2. One wide table at one row per transfer (my recommendation). This would be
+     analytics.sales, with each transfer's date, year, parcel, municipality,
+     school district, sale code, instrument type, price and the derived
+     sale_class. Through the code mappings it handles the question you stated
+     and others too. The yearly family-transfer table becomes a query shown in
+     the README, not another table. The 47-code mapping to sale_class, with
+     estate winning over family, stays a small hand-maintained lookup that feeds
+     this table, and that's the engineering worth explaining. "A star schema,
+     rejected for a single wide table, because the brief asked for one table and
+     a small pipeline" is also a good answer for the README's "design decisions
+     and rejected alternatives" section.
+  3. Just the yearly summary (14 rows). It's the literal answer, but it throws
+     away detail. A reader couldn't ask "where?" or "which sale codes?" without
+     going back to the clean layer.
+
+  Either way, the table is rebuilt from the clean layer on every run, so running
+  twice gives the same result. That's the re-runnability requirement covered.
+
+  You chose the star schema last session, so this is your call: do you want to
+  keep it, or switch to the single wide table?
+
+> We want a star schema, and my interpretation of the "one output table" is the
+  result of a query, not another actual table in the design.  So, we want
+  everything that supports that, and should be reproducable.  Right?
+
+● Yes, and I'd make one detail concrete. The output table is a view in
+  analytics, for example analytics.family_transfers_by_year. A view is a named
+  query stored in the database, not another physical table, so it matches your
+  reading. The repo defines it in SQL and it's computed from the star schema
+  whenever it's queried. A reviewer can run SELECT * FROM
+  analytics.family_transfers_by_year and get the table you put in the README.
+  Reproducibility comes from the pipeline rebuilding the star schema from the
+  clean layer on every run, so two runs on the same data give the same result.
+
+  I have what I need, so this is a project with a written design. I'll write the
+  spec next to the data-quality one. A reviewer will read it before you do, and
+  I may come back once with a few questions. First, I'll look at the clean
+  layer and the existing spec.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Next I'll profile the codes, municipalities and school districts the
+  dimensions will be built from.
+
+  Searched for 1 pattern, read 1 file, ran 5 shell commands (ctrl+o to expand)
+
+● I've gathered the facts the spec needs: the sale and instrument codes, the
+  overlap counts, the ward codes, and how the existing checks plug in. Now I'm
+  writing the spec.
+
+● Write(docs\superpowers\specs\2026-10-30-analytics-layer-design.md)
+  ⎿  Wrote 286 lines to
+     docs\superpowers\specs\2026-10-30-analytics-layer-design.md
+       1 # Analytics layer — design
+       2
+       3 Date: 2026-10-30. Status: draft for approval.
+       4
+       5 ## Intent
+       6
+       7 The exercise asks for "one output table that could be used to an
+         swer a
+       8 question you chose (state the question)". The question:
+       9
+     … +277 lines (ctrl+o to expand)
+
+● Update(docs\superpowers\specs\2026-10-30-analytics-layer-design.md)
+  ⎿  Added 1 line, removed 1 line
+      53  - **A by-municipality output.** The dimensions make it a short 
+          query, but it
+      54    is not part of the deliverable.
+      55  - **2026 and any other incomplete year** in the output (see the
+           view, below).
+      56 -- **Incremental loads.** The layer is small (~490,000 sales); a
+         - full rebuild                                                  
+      56 +- **Incremental loads.** The layer is small (~506,000 sales); a
+         + full rebuild                                                  
+      57    takes seconds. Incremental builds are a "100x scale" topic fo
+          r the README.
+      58  - **A date dimension** (DuckDB's date functions cover year and 
+          month) and a
+      59    **buyer/seller dimension** (the data has no names).
+
+● Agent(Builder check on analytics spec)
+  ⎿  Backgrounded agent (↓ to manage · ctrl+o to expand)
+
+● The spec draft is written: 2026-10-30-analytics-layer-design.md
+  (docs/superpowers/specs/2026-10-30-analytics-layer-design.md). A reviewer is
+  reading it now as someone who would have to build it. When their questions
+  come back, I'll answer what I can myself and bring you only the ones that are
+  yours to decide. Then I'll hand the spec over.
+
+› Message from general-purpose
+  I read the spec and the existing code (wprdc/transform.py, checks.py, dq.py,
+  db.py, sql/*.sql), then ran read-only queries on data/wprdc.duckdb
+  (clean.property_sales, download_date 2026-10-30). Most of the spec is
+  plannable as written: the transaction and run pattern, the checks framework
+  (`alert="any"` already exists) and the table shapes all fit the current code,
+  and the spec's expected counts match the data. Three questions are left, in
+  order of importance.
+
+  **1. Should `estate` count every sale by an estate, or only estate transfers
+  to family?** This matters most.
+  - As written, a sale is `estate` if the deed is an estate deed or the sale
+  code is 37, whatever the price. In today's data that class is mostly
+  market-priced sales:
+
+    | Sales in the `estate` class | Count | Median price |
+    |---|---|---|
+    | Code 3 (love and affection) | 2,983 | $1 |
+    | Code 37 (ESTATE SALE) | 2,743 | $130,000 |
+    | Code 0 (VALID SALE) | 1,705 | $180,500 |
+    | Codes H, 14, 9, UR, AA, 35 and others | about 3,500 | mostly $10k–$150k |
+
+  - Code 37 is mostly on plain deeds (DE: 2,137 of 2,743), so these are mostly
+  executors selling to buyers at market prices, not property passing to family.
+  - Code 37 use also swings by year, apparently with the assessor's coding
+  practice: 0 in 2012, 451 in 2015, 33 in 2022. That swing would drive the
+  `estate_transfers` trend.
+  - **Why it changes the plan:** if `estate` is meant to be "the other route to
+  family", the classes, precedence rule, tests and view columns all change. One
+  option is to split it into estate-to-family (estate deed with code 3 or a
+  nominal price) and estate sales. Another is to keep code 37 out of `estate`,
+  or to call the column something other than a family-transfer measure. I can't
+  tell from the spec which Stephen intends. The README wording depends on it
+  too.
+
+  **2. Should years with many unanalysed sales (code AA, "SALE NOT ANALYZED") be
+  dropped or shown?**
+  - AA rows by year:
+
+    | Year | AA rows | Share of the year |
+    |---|---|---|
+    | 2012 | 9,903 | 30% |
+    | 2018 | 1,999 | about 5–6% |
+    | 2019 | 1,665 | about 5% |
+    | 2020–2025 | under 10 a year | about 0% |
+
+  - An unanalysed sale can't be coded 3, so family counts for 2012, 2018 and
+  2019 are probably too low, and 2012 is the trend's starting point.
+  - The "complete years" rule (years before the download year) keeps all of
+  these. The spec's own caveat only covers the newest year.
+  - **Why it changes the plan:** it decides whether the view gets a
+  `not_analyzed` count column (in line with the "don't hide the denominator"
+  anti-goal), whether the year rule should also drop years above some AA share,
+  or whether a README caveat is enough.
+
+  **3. Has the spec been approved, including the "Claude's calls (check these)"
+  list and building `wprdc.pipeline`?**
+  - The spec's status is "draft for approval". Two points matter for planning:
+    - **The estate-deed list:** for example TD trustee deed, and SV/AF
+  survivorship, which is usually spouse to spouse rather than to the next
+  generation.
+    - **Who builds `wprdc/pipeline.py`:** the spec calls it "planned", but it
+  doesn't exist yet.
+  - **Why it changes the plan:** I'd plan as if Claude's calls stand. If the
+  estate-deed list changes, only `wprdc/sale_classes.py` and some tests change,
+  so that is cheap. Whether `wprdc/pipeline.py` is in scope adds or removes a
+  task and its tests.
+
+  Two things I'll handle as the builder, so they aren't questions:
+  - **The output view:** the spec says to create it in
+  `sql/analytics_schema.sql`, which runs on every connection, alphabetically
+  before the other schema files and before `analytics.sales` exists. If DuckDB
+  1.5.6 won't create a view over a missing table, I'll create it at the end of
+  the build, which the spec already allows.
+  - **Null codes:** no sale codes or instrument types are null today.
+  Ran 1 shell command (ctrl+o to expand)
+
+● Agent "Builder check on analytics spec" finished · 1m 30s
+
+● The reviewer found one problem that's yours to decide. I've checked their
+  numbers against the database and they hold.
+
+  The estate class as written mostly measures executors selling houses, not
+  property passing to family. Of the 11,199 sales it would count, only about
+  3,000 are $1 love-and-affection transfers. The rest are mostly market-priced,
+  with medians around $120,000–$140,000. Code 37 ("ESTATE SALE") makes this
+  worse in two ways:
+  - It's mostly on ordinary deeds, so these are executors selling to buyers.
+  - The assessor applies it unevenly over time: 0 uses in 2012, 451 in 2015, 33
+    in 2022. Its yearly swings would drive the estate trend more than anything
+    real.
+
+  There are three ways to fix it:
+
+  1. (My recommendation) Base estate on the deed type only, and drop code 37 as
+     a trigger. Estate means an executor, fiduciary, administrator, trustee,
+     survivorship, transfer-on-death or will-book deed, at any price. That's
+     about 8,900 sales. Any deed of this kind follows a death, which is the
+     aging signal you're after, and it doesn't rely on an unevenly applied code.
+     Code 37 on an ordinary deed would fall to other. Estate still wins over
+     family, as you decided.
+  2. Split estate in two: estate to family (an estate deed coded love and
+     affection or priced at $10 or less) and estate sales (everything else). The
+     estate-to-family count is small, about 180–330 a year, but it rises fairly
+     steadily from 224 in 2012 to 330 in 2025. It answers your question most
+     directly, at the cost of one more class.
+  3. Keep the spec as written and explain in the README that estate includes
+     market sales.
+
+  Three smaller points I've settled myself; I'll mark them as my calls in the
+  spec:
+  - Unanalyzed sales. About 30% of 2012's sales (9,903) are coded "sale not
+    analyzed", and 5–6% in 2018 and 2019. Those can't be counted as family, so
+    the counts for those years are probably low. I'll keep those years, add a
+    not_analyzed_transfers column to the output table, and note the effect in
+    the README.
+  - The wprdc.pipeline command. It stays a separate task, not part of this spec.
+  - Survivorship deeds. They're usually spouse to spouse, but they still follow
+    a death, so they stay estate deeds.
+
+  Which do you want for the estate class: option 1, 2 or 3?
+
+> option 2
+
+● Update(docs\superpowers\specs\2026-10-30-analytics-layer-design.md)
+  ⎿  Added 5 lines, removed 3 lines
+      12  
+      13  Stephen's hypothesis: as owners age, more property passes to fa
+          mily members
+      14  or trusts, so "love and affection" transfers (the assessor's sa
+          le code 3,
+      15 -median price $1) should rise over the years. Estate transfers (
+         -property                                                       
+      16 -passing through an executor or similar after a death) are the o
+         -ther route the                                                 
+      17 -same trend would take, so they are counted alongside, as their 
+         -own class.                                                     
+      15 +median price $1) should rise over the years. Estate transfers t
+         +o family                                                       
+      16 +(an executor or similar deeding property to an heir for nothing
+         +, after a                                                      
+      17 +death) are the other route the same trend would take, so they a
+         +re counted                                                     
+      18 +alongside, as their own class. Estate deeds that sell property 
+         +at a price are                                                 
+      19 +a separate class: they follow a death but are not property pass
+         +ing to family.                                                 
+      20  
+      21  This is a data engineering exercise, not an analytics one. The 
+          analysis stays
+      22  deliberately small: one output table of yearly counts. The engi
+          neering is in
+
+● Update(docs\superpowers\specs\2026-10-30-analytics-layer-design.md)
+  ⎿  Added 20 lines, removed 8 lines
+      106  
+      107  | sale_class | Meaning |
+      108  |---|---|
+      109 -| `estate` | Property passing through an estate or on death | 
+      110 -| `family` | Love and affection transfer, not through an estat
+          -e |                                                           
+      109 +| `estate_family` | An estate deed passing property for nothin
+          +g: coded love and affection, or price $10 or less |           
+      110 +| `estate_sale` | Any other estate deed (an estate selling at 
+          +a price), or sale code 37 ESTATE SALE |                       
+      111 +| `family` | Love and affection transfer (code 3), not on an e
+          +state deed |                                                  
+      112  | `market` | The assessor's valid, arm's-length sale codes |
+      113  | `distressed` | Foreclosure, sheriff, treasurer, bank, court-
+           ordered, short sale |
+      114  | `other` | Every other known code |
+      115  | `unclassified` | A sale code not in the mapping (should neve
+           r happen; a check catches it) |
+      116  
+      116 -**Precedence (decided by Stephen):** estate wins. A sale is `e
+          -state` if its                                                 
+      117 -instrument type is an estate deed **or** its sale code is 37 (
+          -ESTATE SALE).                                                 
+      118 -Otherwise its class comes from its sale code. This settles the
+          - 2,983 sales                                                  
+      119 -coded love and affection on an estate deed (2,810 of them fidu
+          -ciary deeds),                                                 
+      120 -for example an executor deeding a parent's house to a child: t
+          -hey are estate,                                               
+      121 -not family.                                                   
+      117 +**Rules, in order (first match wins):**                       
+      118  
+      119 +1. Estate deed **and** (sale code 3 **or** price ≤ $10) → `est
+          +ate_family`.                                                  
+      120 +   A null price counts as not nominal.                        
+      121 +2. Estate deed, or sale code 37 → `estate_sale`.              
+      122 +3. Otherwise the class mapped from the sale code (code 3 → `fa
+          +mily`).                                                       
+      123 +                                                              
+      124 +Estate wins over family (decided by Stephen), and estate is sp
+          +lit into the                                                  
+      125 +two classes above (decided by Stephen, after the builder check
+          + showed that                                                  
+      126 +most estate-deed sales are market-priced: median around $120,0
+          +00–$140,000).                                                 
+      127 +This settles the 2,983 sales coded love and affection on an es
+          +tate deed                                                     
+      128 +(2,810 of them fiduciary deeds), such as an executor deeding a
+          + parent's house                                               
+      129 +to a child: they are `estate_family`, not `family`.           
+      130 +                                                              
+      131 +Code 37 only ever makes a sale `estate_sale` (Claude's call): 
+          +the assessor                                                  
+      132 +applies it unevenly (0 uses in 2012, 451 in 2015, 33 in 2022),
+          + so it must                                                   
+      133 +not drive the family-related counts.                          
+      134 +                                                              
+      135  ### Instrument types: estate deeds
+      136  
+      137  `is_estate_deed` is true for: FD fiduciary deed, EX executors 
+           deed, AD admin
+
+● Update(docs\superpowers\specs\2026-10-30-analytics-layer-design.md)
+  ⎿  Added 2 lines, removed 1 line
+      138  deed, TD trustee deed, SV survivorship, AF affidavit of surviv
+           orship, TO
+      139  transfer on death deed, WB will book. All other instrument typ
+           es (30 in the
+      140  current data) are false. Unknown instrument types are false (t
+           hey can only
+      141 -affect `estate` vs. code-based class).                        
+      141 +affect estate vs. code-based class). Survivorship deeds are us
+          +ually spouse to                                               
+      142 +spouse, but they follow a death, so they stay estate deeds (Cl
+          +aude's call).                                                 
+      143  
+      144  ### Sale codes → class
+      145  
+
+● Update(docs\superpowers\specs\2026-10-30-analytics-layer-design.md)
+  ⎿  Added 1 line, removed 1 line
+      149  | Class | Codes |
+      150  |---|---|
+      151  | family | 3 LOVE AND AFFECTION SALE |
+      152 -| estate | 37 ESTATE SALE |                                   
+      152 +| estate_sale | 37 ESTATE SALE |                              
+      153  | market | 0 VALID SALE, PV CLEAN AND GREEN VALID PREFERENTIAL
+            |
+      154  | distressed | 1 SHERIFF SALE, 2 CITY TREASURER SALE, 32 COURT
+            ORDERED SALE, 33 SALE OF PREVIOUS FORECLOSURE, 34 SHORT SALE,
+            BK BANK/FINANCIAL INSTITUTION |
+      155  | other | every other code in the current data (H multi-parcel
+           , 14 time on market, 36 quit claim, 9, 99, AA not analyzed, UR
+           , 35, GV, 16, DT, Z, 27, N, U, 13, 28, ND, PA, 6, 19, 5, X, 29
+           , VB, V, XX, 0X, S, 4, 8, 50, UX, VH, PX, YY, 21) |
+
+● Update(docs\superpowers\specs\2026-10-30-analytics-layer-design.md)
+  ⎿  Added 1 line, removed 1 line
+      154  | distressed | 1 SHERIFF SALE, 2 CITY TREASURER SALE, 32 COURT
+            ORDERED SALE, 33 SALE OF PREVIOUS FORECLOSURE, 34 SHORT SALE,
+            BK BANK/FINANCIAL INSTITUTION |
+      155  | other | every other code in the current data (H multi-parcel
+           , 14 time on market, 36 quit claim, 9, 99, AA not analyzed, UR
+           , 35, GV, 16, DT, Z, 27, N, U, 13, 28, ND, PA, 6, 19, 5, X, 29
+           , VB, V, XX, 0X, S, 4, 8, 50, UX, VH, PX, YY, 21) |
+      156  
+      157 -Only `family` and `estate` feed the output; `market`/`distress
+          -ed` are there so                                              
+      157 +Only `family` and `estate_family` feed the output; the other c
+          +lasses are there so                                           
+      158  the fact table is useful beyond this one question, and the spl
+           it costs nothing.
+      159  `is_market` from the earlier sketch is dropped: it would equal
+      160  `sale_class = 'market'`.
+
+● Update(docs\superpowers\specs\2026-10-30-analytics-layer-design.md)
+  ⎿  Added 9 lines, removed 2 lines
+      221  | `all_transfers` | every sale in `analytics.sales` that year 
+           |
+      222  | `family_transfers` | `sale_class = 'family'` |
+      223  | `family_share` | `family_transfers / all_transfers` |
+      224 -| `estate_transfers` | `sale_class = 'estate'` |              
+      225 -| `estate_share` | `estate_transfers / all_transfers` |       
+      224 +| `estate_family_transfers` | `sale_class = 'estate_family'` |
+      225 +| `estate_family_share` | `estate_family_transfers / all_trans
+          +fers` |                                                       
+      226 +| `not_analyzed_transfers` | sale code AA, SALE NOT ANALYZED |
+      227  
+      228 +`not_analyzed_transfers` is there because an unanalyzed sale c
+          +annot be coded                                                
+      229 +love and affection, so family counts are understated in years 
+          +with many of                                                  
+      230 +them: 9,903 in 2012 (30% of the year), about 2,000 and 1,700 i
+          +n 2018 and                                                    
+      231 +2019, under 10 a year since 2020. Those years stay in the tabl
+          +e; the README                                                 
+      232 +explains the effect (Claude's call, after the builder check). 
+      233 +                                                              
+      234  - **Complete years only:** `sale_year` before the year of the 
+           clean data's
+      235    download date (`download_date` in the latest snapshot). With
+            today's data
+      236    that is 2012–2025, leaving out 2026 as Stephen decided. (Cla
+           ude's call on
+
+● Update(docs\superpowers\specs\2026-10-30-analytics-layer-design.md)
+  ⎿  Added 2 lines, removed 2 lines
+      245  - Shares as decimals rounded to 4 places; ordered by `sale_yea
+           r`.
+      246  
+      247  Expected today (from profiling; the tests should not depend on
+            these):
+      248 -family ranges 6,490 (2017) to 8,061 (2021), 7,191 in 2025; est
+          -ate 513 (2012)                                                
+      249 -to 882 (2024).                                                
+      248 +family ranges 6,490 (2017) to 8,061 (2021), 7,191 in 2025; est
+          +ate_family                                                    
+      249 +ranges 178 (2020) to 330 (2025), 224 in 2012.                 
+      250  
+      251  ## Data quality checks added
+      252  
+
+● Update(docs\superpowers\specs\2026-10-30-analytics-layer-design.md)
+  ⎿  Added 5 lines, removed 3 lines
+      263  
+      264  ## Tests
+      265  
+      266 -- Classification: estate deed with code 3 → `estate`; code 37 
+          -on a plain                                                    
+      267 -  deed → `estate`; code 3 on a plain deed → `family`; unmapped
+          - code →                                                       
+      268 -  `unclassified`; each class reachable.                       
+      266 +- Classification: estate deed with code 3 → `estate_family`; e
+          +state deed at                                                 
+      267 +  $10 with another code → `estate_family`; estate deed at $150
+          +,000 →                                                        
+      268 +  `estate_sale`; estate deed with null price and code 0 → `est
+          +ate_sale`; code                                               
+      269 +  37 on a plain deed at $1 → `estate_sale`; code 3 on a plain 
+          +deed →                                                        
+      270 +  `family`; unmapped code → `unclassified`; each class reachab
+          +le.                                                           
+      271  - Ward rollup, including `Forward` (not a ward) and names with
+            double spaces.
+      272  - Parcel attributes taken from the latest sale, deterministica
+           lly.
+      273  - The output view on fixture rows: counts, shares, the incompl
+           ete year left
+
+● Update(docs\superpowers\specs\2026-10-30-analytics-layer-design.md)
+  ⎿  Added 2 lines
+      289    dimension.
+      290  - Estate transfers are their own class, and win over family wh
+           en a sale is
+      291    both.
+      292 +- Estate is split into `estate_family` (estate deed for nothin
+          +g) and                                                        
+      293 +  `estate_sale` (estate deed at a price).                     
+      294  - Denominator: share of all transfers. No second dataset.
+      295  - 2026 left out of the analysis.
+      296  - The output is a table, not a chart; "one output table" is th
+           e result of a
+
+● Update(docs\superpowers\specs\2026-10-30-analytics-layer-design.md)
+  ⎿  Added 4 lines, removed 2 lines
+      298  
+      299  ## Claude's calls (check these)
+      300  
+      301 -- Estate = estate-deed instrument types (FD, EX, AD, TD, SV, A
+          -F, TO, WB) or                                                 
+      302 -  sale code 37.                                               
+      301 +- Estate deeds = FD, EX, AD, TD, SV, AF, TO, WB (survivorship 
+          +included).                                                    
+      302 +- "For nothing" = code 3 or price ≤ $10; null price is not nom
+          +inal.                                                         
+      303 +- Code 37 only ever gives `estate_sale`.                      
+      304 +- `not_analyzed_transfers` column; years with many unanalyzed 
+          +sales kept.                                                   
+      305  - Sale-code mapping for `market`, `distressed`, `other` as abo
+           ve; `is_market`
+      306    dropped.
+      307  - Mapping kept in `wprdc/sale_classes.py`, not a CSV seed.
+
+● Update(docs\superpowers\specs\2026-10-30-analytics-layer-design.md)
+  ⎿  Added 2 lines
+      59    takes seconds. Incremental builds are a "100x scale" topic fo
+          r the README.
+      60  - **A date dimension** (DuckDB's date functions cover year and 
+          month) and a
+      61    **buyer/seller dimension** (the data has no names).
+      62 +- **`python -m wprdc.pipeline`.** The single command that runs 
+         +every step is                                                  
+      63 +  a separate task.                                             
+      64  - **Writing the README.** Separate task; this spec only says wh
+          at the README
+      65    must show from this layer.
+      66  
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● Now I'm committing the spec and updating my notes.
+
+  Ran 1 shell command, wrote 1 memory (ctrl+o to expand)
+
+● The spec is written and committed: 2026-10-30-analytics-layer-design.md
+  (docs/superpowers/specs/2026-10-30-analytics-layer-design.md). It now uses
+  option 2, estate to family vs. estate sales:
+
+  - An estate deed coded love and affection, or priced at $10 or less, is
+    estate_family.
+  - Any other estate deed, and any sale coded 37, is estate_sale.
+  - family is love and affection on an ordinary deed.
+
+  The output view, analytics.family_transfers_by_year, has one row per year for
+  2012–2025 with these columns:
+  - all transfers
+  - family transfers, as a count and a share
+  - estate-to-family transfers, as a count and a share
+  - unanalyzed transfers
+
+  These are the calls I made myself. Please check them as you read; they're also
+  listed at the end of the spec:
+
+  1. Estate deeds are fiduciary, executor, administrator, trustee, survivorship,
+     affidavit of survivorship, transfer-on-death and will-book deeds.
+     Survivorship is included even though it's usually spouse to spouse.
+  2. "For nothing" means coded love and affection or priced at $10 or less. A
+     missing price doesn't count as nominal.
+  3. Code 37 only ever makes a sale estate_sale, because the assessor applies it
+     unevenly over the years.
+  4. Other classes from the sale code: market is codes 0 and PV. distressed is
+     sheriff, treasurer, court-ordered, previous foreclosure, short sale and
+     bank. Everything else is other.
+  5. Unanalyzed years stay in. 2012, 2018 and 2019 are kept, with the
+     not_analyzed_transfers column and a README note explaining that family
+     counts for those years are probably low.
+  6. 2026 is left out by a rule, not a hard-coded year: only years before the
+     year the data was downloaded are shown.
+  7. Two new data-quality flags, each alerting on its first failure: a sale code
+     missing from the mapping, and a parcel whose municipality or school
+     district changes between sales. Both are 0 today.
+  8. Build details:
+     - The code-to-class mapping lives in a Python module,
+       wprdc/sale_classes.py.
+     - Tables use the source's own codes as keys.
+     - A parcel's address comes from its latest sale.
+     - python -m wprdc.analytics is its own step, built in one transaction.
+     - The wprdc.pipeline command is a separate task.
+
+  Once you approve the spec, the next step is the implementation plan.
+
+> spec approved
+
+● Skill(superpowers:writing-plans)
+  ⎿  Successfully loaded skill
+
+● I'm using the writing-plans skill to create the implementation plan. First
+  I'll read how the transform step, schema loading and tests are built, so the
+  plan follows the same patterns.
+
+  Ran 4 shell commands (ctrl+o to expand)
+
+● I confirmed DuckDB can't create a view over a nonexistent table, so I'll
+  create the output view at the end of each build as the spec allows. Writing
+  the plan now.
+
+● Write(docs\superpowers\plans\2026-10-30-analytics-layer.md)
+  ⎿  Wrote 189 lines to
+     docs\superpowers\plans\2026-10-30-analytics-layer.md
+      1 # Analytics Layer Implementation Plan
+      2
+      3 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:su
+        bagent-driven-development (recommended) or superpowers:executing-
+        plans to implement this plan task-by-task. Steps use checkbox (`-
+         [ ]`) syntax for tracking.
+      4
+      5 **Goal:** Build the `analytics` star schema from `clean.property_
+        sales` and the output view `analytics.family_transfers_by_year`,
+        via `python -m wprdc.analytics`.
+     … +184 lines (ctrl+o to expand)
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● I wrote the implementation plan for the analytics layer and committed it, but
+  haven't built anything yet: 2026-10-30-analytics-layer.md
+  (docs/superpowers/plans/2026-10-30-analytics-layer.md). It has four tasks:
+
+  1. Mapping of sale codes to classes: wprdc/sale_classes.py holds the 47 codes,
+     the estate-deed list and the SQL that sorts every sale into a class. It's
+     tested on each edge case in the spec.
+  2. Two new data-quality checks: sale_code_unmapped and parcel_location_varies.
+     Both mark the affected sales and alert you on their first failure.
+  3. The star schema and output table: python -m wprdc.analytics builds the five
+     dimension tables and the sales table in one transaction, then creates the
+     output view and prints the yearly table. Its tests cover:
+     - the classes
+     - the ward roll-up, including Forward, which isn't a ward
+     - which sale a parcel's address comes from
+     - the shares, with 2026 left out
+     - running the build twice gives identical results
+     - a failed build leaves the previous tables in place
+     - running it before transform
+  4. A run on the real data: the counts are checked against the numbers I got by
+     querying the database during the design work.
+
+  One change from the spec: the view can't be created in the schema file. I
+  checked, and DuckDB refuses to create a view over a table that doesn't exist
+  yet. So the build creates the view at the end of each run, which the spec
+  already allowed. The existing 74 tests pass before any changes.
+
+  Please review the plan. Which way should I build it?
+
+  - Subagent-driven: a fresh subagent builds each task and a fresh reviewer
+    checks it before the next one starts. One last review covers the whole
+    branch. It's the most thorough, and the slowest and most costly.
+  - Native: I build every task myself in this session, then one fresh reviewer
+    checks the whole branch. It's cheaper and faster, with no independent review
+    until the end.
+
+  I recommend Native. There are only four tasks, they depend on each other's
+  names and functions, and the Nov 2 deadline makes speed worth more than a
+  review after every task.
+
+  Does the plan capture what you want, and which approach should we use?
+> yes, and Native.
+
+● Skill(superpowers:executing-plans)
+  ⎿  Successfully loaded skill
+
+● I'm using the executing-plans skill to build the plan in this session. I'll
+  work on a new branch, analytics-layer, not on main.
+
+● Skill(superpowers:test-driven-development)
+  ⎿  Successfully loaded skill
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+● Task 1: writing the classification tests first.
+
+● Write(tests\test_sale_classes.py)
+  ⎿  Wrote 50 lines to tests\test_sale_classes.py
+       1 import duckdb
+       2 import pytest
+       3
+       4 from wprdc.sale_classes import ESTATE_DEEDS, SALE_CLASSES, mappe
+         d_codes_sql, sale_class_sql
+       5
+       6 CLASSES = {"estate_family", "estate_sale", "family", "market", "
+         distressed", "other"}
+       7
+       8
+     … +42 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● RED as expected (the module doesn't exist yet). Implementing.
+
+● Write(wprdc\sale_classes.py)
+  ⎿  Wrote 95 lines to wprdc\sale_classes.py
+       1 """How each property sale is classified, for the analytics layer
+         .
+       2
+       3 Every sale gets exactly one sale_class. The rules, first match w
+         ins:
+       4
+       5   1. An estate deed (ESTATE_DEEDS) passing property for nothing:
+          coded love
+       6      and affection (3) or priced at NOMINAL_PRICE or less -> est
+         ate_family.
+     … +89 lines (ctrl+o to expand)
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Task 1 is done. Task 2: adding the tests for the two new checks.
+
+● Bash(cd "C:/Users/steph/job-search/WPRDC-Data-Pipeline-Exercise" && python -
+      <<'EOF'
+      import re,pathlib…)
+  ⎿  Updated tests\test_checks.py (+3 -1)
+      3  
+      4  def test_check_ids_unique():
+      5      ids = [c.id for c in CHECKS]
+      6 -    assert len(ids) == len(set(ids)) == 7                       
+      6 +    assert len(ids) == len(set(ids)) == 9                       
+      7  
+      8  
+      9  def test_version_ignores_whitespace_action_and_description():
+     ...
+      21      assert {i for i, c in by_id.items() if c.action == "quarant
+          ine"} == {
+      22          "sale_date_invalid", "record_date_invalid", "record_dat
+          e_future", "record_date_missing"}
+      23      assert by_id["key_not_unique"].alert == "any"
+      24 +    for new in ("sale_code_unmapped", "parcel_location_varies")
+         +:                                                              
+      25 +        assert (by_id[new].action, by_id[new].alert) == ("flag"
+         +, "any")                                                       
+      26  
+      27  
+      28  def test_checks_refer_to_typed_table_by_alias():
+  ⎿  Updated tests\test_transform.py (+14 -0)
+      118      with pytest.raises(TransformError, match="pruned"):
+      119          transform(con, "r2")
+      120      assert con.execute(f"SELECT any_value(snapshot_id) FROM {C
+           LEAN}").fetchone() == ("B",)
+      121 +                                                              
+      122 +                                                              
+      123 +def test_unmapped_sale_code_flagged(con):                     
+      124 +    make_snapshot(con, "s1", [sale(), sale(DEEDPAGE="2", SALEC
+          +ODE="ZZ")])                                                   
+      125 +    result = transform(con, "r1")                             
+      126 +    assert clean_rows(con) == [(1, []), (2, ["sale_code_unmapp
+          +ed"])]                                                        
+      127 +    assert len(result["alerts"]) == 1                         
+      128 +                                                              
+      129 +                                                              
+      130 +def test_parcel_location_varies_flagged(con):                 
+      131 +    make_snapshot(con, "s1", [sale(), sale(DEEDPAGE="2", MUNIC
+          +ODE="946"),                                                   
+      132 +                              sale(PARID="0001A00001000000", D
+          +EEDPAGE="3")])                                                
+      133 +    transform(con, "r1")                                      
+      134 +    assert clean_rows(con) == [(1, ["parcel_location_varies"])
+          +, (2, ["parcel_location_varies"]), (3, [])]                   
+  ⎿  (files that changed while this command ran, by the command or by
+     another process; a convenience view, not a review or audit of the
+     command)
+
+● Bash(cd "C:/Users/steph/job-search/WPRDC-Data-Pipeline-Exercise" && python -
+      <<'EOF'
+      import pathlib…)
+  ⎿  Updated wprdc\checks.py (+23 -0)
+      21  from dataclasses import dataclass
+      22  from typing import Literal
+      23  
+      24 +from wprdc.sale_classes import mapped_codes_sql                
+      25 +                                                               
+      26  # A rate jump alerts the engineer when the failure rate more th
+          an doubles AND
+      27  # at least this many more records fail. Starting values, to tun
+          e with history.
+      28  ALERT_RATE_FACTOR = 2.0
+     ...
+       99                       GROUP BY 1 HAVING count(*) > 1)""",
+      100          alert="any",
+      101      ),
+      102 +    # A new county sale code would otherwise land in sale_clas
+          +s 'unclassified'                                              
+      103 +    # unnoticed. The condition is built from wprdc/sale_classe
+          +s.py, so changing                                             
+      104 +    # the mapping gives this check a new version (a definition
+          +_changed notice).                                             
+      105 +    Check(                                                    
+      106 +        id="sale_code_unmapped",                              
+      107 +        description="SALECODE missing or not in wprdc/sale_cla
+          +sses.py",                                                     
+      108 +        action="flag",                                        
+      109 +        where=f"sale_code IS NULL OR sale_code NOT IN ({mapped
+          +_codes_sql()})",                                              
+      110 +        alert="any",                                          
+      111 +    ),                                                        
+      112 +    # analytics.parcel keeps one location per parcel; true in 
+          +every snapshot so far.                                        
+      113 +    Check(                                                    
+      114 +        id="parcel_location_varies",                          
+      115 +        description="PARID has more than one municipality or s
+          +chool district in the snapshot",                              
+      116 +        action="flag",                                        
+      117 +        where="""PARID IN (                                   
+      118 +                     SELECT PARID FROM typed GROUP BY 1       
+      119 +                     HAVING count(DISTINCT municipality_code) 
+          +> 1                                                           
+      120 +                         OR count(DISTINCT school_code) > 1)""
+          +",                                                            
+      121 +        alert="any",                                          
+      122 +    ),                                                        
+      123  ]
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Task 3: writing the tests for the star schema and the output view.
+
+● Write(tests\test_analytics.py)
+  ⎿  Wrote 137 lines to tests\test_analytics.py
+      1 import duckdb
+      2 import pytest
+      3
+      4 from tests.dq_fixtures import con, make_snapshot, sale  # noqa: F
+        401  (con is a fixture)
+      5 from wprdc import analytics as analytics_module
+      6 from wprdc import config
+      7 from wprdc import transform as transform_module
+      8 from wprdc.analytics import OUTPUT, SALES, TABLES, AnalyticsError
+        , build_analytics
+     … +129 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● RED: the module doesn't exist yet. Next I'll implement the schema file, the
+  module and the ops comment.
+
+● Write(sql\analytics_schema.sql)
+  ⎿  Wrote 16 lines to sql\analytics_schema.sql
+       1 -- Analytics layer: a star schema over clean.property_sales, and
+          the output
+       2 -- table for the question "Are family transfers of property in A
+         llegheny County
+       3 -- rising as the population ages?". Rebuilt in full by
+       4 -- python -m wprdc.analytics (see wprdc/analytics.py), so only t
+         he schema is
+       5 -- declared here:
+       6 --   analytics.sales             fact: one row per clean sale, w
+         ith sale_class
+     … +10 lines (ctrl+o to expand)
+
+● Write(wprdc\analytics.py)
+  ⎿  Wrote 202 lines to wprdc\analytics.py
+      1 """Build the analytics star schema and the family transfers outpu
+        t table.
+      2
+      3     python -m wprdc.analytics
+      4
+      5 Run after python -m wprdc.transform. Every table in the analytics
+         schema is
+      6 rebuilt in full from clean.property_sales: the fact table analyti
+        cs.sales
+      7 (one row per sale, with its sale_class from wprdc/sale_classes.py
+     … +196 lines (~8 KB) (ctrl+o to expand)
+
+● Bash(cd "C:/Users/steph/job-search/WPRDC-Data-Pipeline-Exercise" && sed -i
+      's/-- ingest | probe | adhoc | transform/-- ingest | probe | adhoc |
+      transform | analytics…)
+  ⎿  Updated sql\ops_schema.sql (+1 -1)
+       8  -- One row per script execution (ingest, probe, or ad-hoc dev s
+          ession).
+       9  CREATE TABLE IF NOT EXISTS ops.fetch_run (
+      10      run_id            VARCHAR PRIMARY KEY,
+      11 -    command           VARCHAR NOT NULL,      -- ingest | probe 
+         -| adhoc | transform                                            
+      11 +    command           VARCHAR NOT NULL,      -- ingest | probe 
+         +| adhoc | transform | analytics                                
+      12      started_at        TIMESTAMPTZ NOT NULL,
+      13      finished_at       TIMESTAMPTZ,
+      14      status            VARCHAR NOT NULL,      -- running | succe
+          eded | failed
+
+● All 11 analytics tests pass. Next I'll run the full suite and commit.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Task 4: running transform and then analytics on the real database.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Every value matches the numbers from the spec. Next I'll check the dimension
+  counts.
+
+  Read 1 file, ran 2 shell commands (ctrl+o to expand)
+
+● All four tasks are done, and the real data gives the numbers we expected. Next
+  I'm sending the whole branch to a fresh reviewer.
+
+● Agent(Final whole-branch code review)  ⎿  Backgrounded agent (↓ to manage · ctrl+o to expand)
+
+● The analytics layer is built on the analytics-layer branch: all 103 tests pass
+  (29 of them new). A fresh reviewer is now checking the whole branch. When its
+  findings come back, I'll fix anything serious and then report.
+
+  Here's the output table from your real data:
+
+  year        all   family   share  estate_family   share  not_analyzed
+  2012     33,459    7,138   21.3%            224    0.7%         9,903
+  2013     33,761    6,519   19.3%            240    0.7%           882
+  2014     33,307    6,719   20.2%            206    0.6%           120
+  2015     34,416    6,752   19.6%            185    0.5%           108
+  2016     35,856    6,708   18.7%            213    0.6%            40
+  2017     35,263    6,490   18.4%            181    0.5%           473
+  2018     36,472    6,498   17.8%            200    0.5%         1,999
+  2019     35,666    6,605   18.5%            219    0.6%         1,665
+  2020     35,342    7,027   19.9%            178    0.5%             6
+  2021     40,225    8,061   20.0%            280    0.7%             5
+  2022     34,826    6,963   20.0%            275    0.8%             3
+  2023     30,859    6,747   21.9%            301    1.0%             2
+  2024     31,111    6,835   22.0%            293    0.9%             2
+  2025     31,555    7,191   22.8%            330    1.1%             0
+
+  - The table matches the spec. Every number matches what I got from querying
+    the database during the design work.
+  - The new checks are clean. Both found 0 problems, and no alerts were raised.
+  - Every sale is classified. No sale is unclassified, and the dimensions have
+    the expected sizes: 175 municipalities (with 49 wards rolled up to 4
+    cities), 46 school districts, 30 instrument types and 47 sale codes.
+
+  The table gives some support to your hypothesis. Family transfers' share rose
+  from 17.8% in 2018 to 22.8% in 2025. Estate-to-family transfers rose from 178
+  in 2020 to 330 in 2025.
+
+› Message from general-purpose
+  ## Review: analytics layer (52dd90f..b65ec41)
+
+  ### Strengths
+  - The work follows the spec closely. All six classes and the rule order
+  (estate_family, then estate_sale, then the code mapping) are in place. The
+  estate-deed set and the 47-code mapping match the spec exactly, and
+  `sale_classes.py` is the single source for the CASE expression, the
+  `sale_type` dimension and the `sale_code_unmapped` check. Because
+  `mapped_codes_sql()` sorts the codes, the check's version changes only when
+  the mapping changes.
+  - Builds are deterministic: the parcel tie-break is sale_date, then
+  record_date, then sale_key, then source_row_number, and description ties are
+  broken alphabetically. The executor's ruling to add `source_row_number` is
+  correct, because two rows can share a sale_key. `build_analytics` uses the
+  same begin/commit/rollback pattern as `transform`.
+  - I checked the real DB read-only and it matches the spec:
+    - 49 ward codes: Pittsburgh 32, McKeesport 12, Duquesne 3, Clairton 2.
+  "Forward" is not a ward.
+    - The view covers 2012–2025. Family runs from 6,490 (2017) to 8,061 (2021),
+  with 7,191 in 2025. Estate_family runs from 178 (2020) to 330 (2025), with 224
+  in 2012. Not-analyzed is 9,903 in 2012.
+    - Every sale has a parcel, every parcel code has a municipality row, and no
+  `sale_type` row has a null description.
+    - Both new checks flag 0 rows.
+  - Review Focus results:
+    1. **Covered.** I ran `main()` on a fresh DB with no clean table myself: it
+  raises `AnalyticsError` naming `python -m wprdc.transform`, `ops.fetch_run`
+  records `analytics/failed` with that message, and the analytics schema has no
+  tables.
+    2. **Covered** by `test_empty_clean_builds`. With no clean rows the
+  download-year cutoff is NULL, so the view returns 0 rows.
+    3. **Covered** by `test_null_codes_kept_in_fact` plus the unit cases
+  `(None,"DE")` and `("3",None)`.
+    4. **Covered** by `test_sale_type_includes_mapped_codes_missing_from_data`.
+    5. **Covered** by `test_rebuild_is_identical`.
+  - 103 tests pass (I re-ran them).
+
+  ### Issues
+
+  #### Critical (Must Fix)
+  None.
+
+  #### Important (Should Fix)
+  1. **wprdc/analytics.py:145 (`_create_output_view`): the output view reads
+  `clean.property_sales` every time it is queried.** The year cutoff `WHERE
+  sale_year < (SELECT year(max(download_date)) FROM clean.property_sales)` is
+  taken from the clean layer whenever someone queries the view, not when
+  analytics is built.
+     - **Why it matters:** if `transform` loads a new snapshot and `analytics`
+  then fails or is not run, the view combines new clean data with old analytics
+  data. The spec promises that on failure "the previous analytics tables stay",
+  and a user would expect the output to stay as it was too. Example: in January
+  2027, transform succeeds and analytics fails. The view then shows 2026 from an
+  `analytics.sales` built from a 2026 download, which holds only part of that
+  year.
+     - It also means nothing in the analytics layer records which snapshot it
+  was built from.
+     - **This comes from the plan, not the executor:** the plan (line 146)
+  prescribes this exact WHERE clause.
+     - **Fix:** freeze the cutoff at build time. Either write the year into the
+  view as a literal when it is created, or store `snapshot_id` and
+  `download_date` in a small `analytics.build_info` table (or as columns on
+  `analytics.sales`) and point the view at that. Add a test: build, run
+  transform on a snapshot with a later download date, and check the view is
+  unchanged.
+
+  #### Minor (Nice to Have)
+  1. **wprdc/analytics.py:43–49 (`_descriptions`): a null description can be
+  chosen as the "most frequent".** If a code's rows are mostly null
+  descriptions, the dimension gets a null description even when a real one
+  exists in the data. Add `AND {desc} IS NOT NULL` to the WHERE clause, or sort
+  nulls last before sorting by count. This does not happen in the current data.
+  2. **wprdc/analytics.py:79–90 together with wprdc/checks.py:113–120: a parcel
+  can lose its location without any check firing.** The parcel takes its
+  location from its latest sale. If that sale has a null `municipality_code` or
+  `school_code` and an earlier sale has a value, the parcel ends up with a null
+  location. `count(DISTINCT ...)` ignores nulls, so `parcel_location_varies`
+  would not flag it. Real data has 0 null codes, so this is theoretical. Fix by
+  counting null as a distinct value in the check, or by taking the latest
+  non-null code for each column.
+  3. **tests/test_analytics.py: two tests check less than the behaviour they are
+  named for.**
+     - `test_build_without_clean_raises` calls `build_analytics` directly, so it
+  does not cover the "run recorded as failed" part of Review Focus 1. I
+  verified that part by hand (above), but no test protects it.
+     - `test_failure_keeps_previous_tables` checks only that `analytics.sales`
+  keeps its row count. It does not check the other dimension tables, the view,
+  or the failed run record.
+     - Fix: add a `main()`-level failure test like
+  `test_main_logs_an_analytics_run`, and compare `snapshot_tables` before and
+  after the failure.
+
+  ### Declined to judge
+  - `analytics.main` lets `AnalyticsError` print as an uncaught traceback
+  instead of a plain message. I set this aside because `transform.main` does the
+  same with `TransformError`, and the spec only asks for a clear error.
+  - The `sale_code_unmapped` version changes only when a code is added or
+  removed, not when a code is moved to another class. The spec only promises a
+  version change when codes are added or removed.
+  - Speed of the full rebuild (~506k rows): the spec explicitly accepts a full
+  rebuild, and my probe saw nothing slow.
+  - The README content and `python -m wprdc.pipeline`: both are separate tasks
+  under the spec's non-goals.
+  - The spec says `analytics_schema.sql` creates the view, but the build creates
+  it instead. The spec allows this fallback ("if that turns out not to hold"),
+  and the plan requires it.
+  - `format_output` labels both share columns "share": the plan does not specify
+  the header text.
+
+  ### Recommendations
+  - Fix Important #1 by freezing the cutoff at build time. Recording
+  `snapshot_id` and `download_date` in a build-info table would also let a later
+  pipeline check that the analytics and clean layers come from the same
+  snapshot.
+  - Fold the two test gaps (Minor #3) into the same change.
+
+  ### Assessment
+  **Ready to merge?** With fixes
+
+  **Reasoning:** The implementation matches the spec, and its output on real
+  data matches every profiled value. The one problem a user could notice is that
+  the output view takes its cutoff year from the clean layer each time it is
+  queried. That breaks the promise that a failed run leaves the previous output
+  in place, and the fix is small. It comes from the plan rather than the
+  executor.
+
+● The reviewer found one Important issue, and I agree with it. The output view
+  looks up its cutoff year in the clean layer every time it's queried. So if
+  transform loads a new snapshot and analytics then fails, the view mixes new
+  clean data with old analytics tables. The fix is to record the snapshot each
+  build used. I'm writing the test that reproduces the problem first.
+
+● Bash(cd "C:/Users/steph/job-search/WPRDC-Data-Pipeline-Exercise" && cat >>
+      tests/test_analytics.py <<'EOF'…)
+  ⎿  Updated tests\test_analytics.py (+14 -0)
+      1 +from datetime import date                                       
+      2 +                                                                
+      3  import duckdb
+      4  import pytest
+      5  
+     ...
+      137      assert c.execute("SELECT command, status FROM ops.fetch_ru
+           n ORDER BY started_at").fetchall() == [
+      138          ("transform", "succeeded"), ("analytics", "succeeded")
+           ]
+      139      c.close()
+      140 +                                                              
+      141 +                                                              
+      142 +def test_view_frozen_at_build_time(con):                      
+      143 +    build(con, [in_2025(), sale(DEEDPAGE="2", SALEDATE="2026-0
+          +3-01", RECORDDATE="2026-03-10")])                             
+      144 +    before = con.execute(f"SELECT * FROM {OUTPUT}").fetchall()
+      145 +    # transform loads a snapshot downloaded a year later; anal
+          +ytics is not rebuilt                                          
+      146 +    make_snapshot(con, "s2", [in_2025(), sale(DEEDPAGE="2", SA
+          +LEDATE="2026-03-01", RECORDDATE="2026-03-10")],               
+      147 +                  minutes=365 * 24 * 60)                      
+      148 +    transform(con, "r2")                                      
+      149 +    assert con.execute(f"SELECT * FROM {OUTPUT}").fetchall() =
+          += before                                                      
+      150 +    assert con.execute("SELECT snapshot_id, download_date FROM
+          + analytics.build_info").fetchall() == [                       
+      151 +        ("s1", date(2026, 10, 28))]                           
+
+● Agent "Final whole-branch code review" finished · 2m 34s
+
+● RED for the right reason: the incomplete 2026 row shows up once a newer
+  snapshot is loaded. Now the fix.
+
+● Update(wprdc\analytics.py)
+  ⎿  Added 2 lines, removed 1 line
+      24  
+      25  SALES = "analytics.sales"
+      26  OUTPUT = "analytics.family_transfers_by_year"
+      27 -TABLES = ("analytics.municipality", "analytics.school_district"
+         -, "analytics.parcel",                                          
+      27 +BUILD_INFO = "analytics.build_info"                            
+      28 +TABLES = (BUILD_INFO, "analytics.municipality", "analytics.scho
+         +ol_district", "analytics.parcel",                              
+      29            "analytics.sale_type", "analytics.instrument_type", S
+          ALES)
+      30  
+      31  # "1st Ward - PITTSBURGH" -> PITTSBURGH. Matched on the whole n
+          ame: code 911 is
+
+● Update(wprdc\analytics.py)
+  ⎿  Added 11 lines
+      50          QUALIFY row_number() OVER (PARTITION BY {code} ORDER BY
+           n DESC, {desc}) = 1"""
+      51  
+      52  
+      53 +def _build_build_info(con: duckdb.DuckDBPyConnection) -> None: 
+      54 +    """The snapshot this build came from. The output view reads
+         + its cutoff year                                               
+      55 +    here, not from the clean layer, so a later transform withou
+         +t an analytics                                                 
+      56 +    rebuild does not change the output."""                     
+      57 +    con.execute(                                               
+      58 +        f"""                                                   
+      59 +        CREATE OR REPLACE TABLE {BUILD_INFO} AS                
+      60 +        SELECT max(snapshot_id) AS snapshot_id, max(download_da
+         +te) AS download_date FROM {CLEAN}                              
+      61 +        """)                                                   
+      62 +                                                               
+      63 +                                                               
+      64  def _build_municipality(con: duckdb.DuckDBPyConnection) -> None
+          :
+      65      con.execute(
+      66          f"""
+
+● Update(wprdc\analytics.py)
+  ⎿  Added 1 line, removed 1 line
+      153                     count(*) FILTER (WHERE sale_class = 'estate
+           _family') AS estate_family_transfers,
+      154                     count(*) FILTER (WHERE sale_code = '{NOT_AN
+           ALYZED_CODE}') AS not_analyzed_transfers
+      155              FROM {SALES}
+      156 -            WHERE sale_year < (SELECT year(max(download_date))
+          - FROM {CLEAN})                                                
+      156 +            WHERE sale_year < (SELECT year(download_date) FROM
+          + {BUILD_INFO})                                                
+      157              GROUP BY sale_year
+      158          )
+      159          SELECT sale_year, all_transfers,
+
+● Update(wprdc\analytics.py)
+  ⎿  Added 1 line
+      173          raise AnalyticsError(f"{CLEAN} does not exist; run pyt
+           hon -m wprdc.transform first")
+      174      con.begin()
+      175      try:
+      176 +        _build_build_info(con)                                
+      177          _build_municipality(con)
+      178          _build_school_district(con)
+      179          _build_parcel(con)
+
+● Update(sql\analytics_schema.sql)
+  ⎿  Added 1 line
+      3  -- rising as the population ages?". Rebuilt in full by
+      4  -- python -m wprdc.analytics (see wprdc/analytics.py), so only t
+         he schema is
+      5  -- declared here:
+      6 +--   analytics.build_info        the snapshot (and download date
+        +) built from                                                    
+      7  --   analytics.sales             fact: one row per clean sale, w
+         ith sale_class
+      8  --   analytics.parcel            one row per PARID: address, mun
+         icipality, school
+      9  --   analytics.municipality      175 codes, wards rolled up to t
+         heir city
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● GREEN, 104/104. Next I'll re-run on the real data and commit.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Skill(superpowers:finishing-a-development-branch)
+  ⎿  Successfully loaded skill
+
+● I'm using the finishing-a-development-branch skill to complete this work. The
+  full suite passed on this exact tree (104 tests), and this is a normal repo
+  branched from main.
+
+  The reviewer's Important finding is fixed. The output view used to read its
+  cutoff year from the clean layer every time it was queried. Now each build
+  records the snapshot it used in a small table, analytics.build_info, and the
+  view reads the year from there. If transform loads newer data and analytics
+  isn't rebuilt, or fails, the output stays as it was. A new test reproduced the
+  problem before the fix and passes after it. Re-running on your real data
+  gives the same table as before.
+
+  Calls I made along the way:
+  - I worked on a new analytics-layer branch in your main checkout, not a
+    separate worktree, because Task 4 needed data/wprdc.duckdb. If that's wrong,
+    nothing is lost: the branch is isolated.
+  - When a parcel's latest sales tie, the last tie-breaker is the row's position
+    in the file, because two rows can share a sale key. This only matters for
+    duplicate keys, and there are none today.
+  - I added a small format_output helper for the printed table. It only keeps
+    main short.
+  - A missing clean.property_sales prints a traceback, as transform does with
+    its own errors. The worst case is an uglier error message.
+  - The sale_code_unmapped check doesn't get a new version when a code moves to
+    a different class, only when a code is added or removed. Moving a code
+    doesn't change which codes are unmapped, so nothing is lost.
+
+  Minor findings I didn't fix (none affects today's data):
+  - A code whose rows mostly have no description would get no description in its
+    dimension table.
+  - If a parcel's latest sale has no municipality or school code, the parcel
+    gets a blank location, and parcel_location_varies wouldn't flag it.
+  - No test checks that a failed analytics run is recorded as failed. The
+    reviewer confirmed it by hand. The failure test also checks only the sales
+    table.
+
+  The branch has four commits:
+  - 9053b90 Add sale-class mapping and classification SQL
+  - 53d7865 Add sale_code_unmapped and parcel_location_varies checks
+  - b65ec41 Add analytics star schema and family transfers output view
+  - 848a3d0 Freeze the output view's cutoff year at build time
+
+  What would you like to do?
+
+  1. Merge back to main locally
+  2. Push and create a Pull Request
+  3. Keep the branch as-is (I'll handle it later)
+
+  Which option?
+
+> 1
+
+● Bash(cd "C:/Users/steph/job-search/WPRDC-Data-Pipeline-Exercise" && git remote
+      -v | head -2; git checkout -q main && (git pull -q 2>&1 || true) && git
+      merge -q analy…)
+  ⎿  Updated sql\analytics_schema.sql (+17 -17)
+  ⎿  Updated sql\ops_schema.sql (+126 -126)
+  ⎿  Updated tests\test_analytics.py (+151 -151)
+  ⎿  Updated tests\test_sale_classes.py (+50 -50)
+  ⎿  Updated tests\test_transform.py (+14 -14)
+  ⎿  … 2 more files changed
+  ⎿  (a git step in this command can move the working tree, so these may be
+     its changes, not edits) (ctrl+o to expand)
+
+  Ran 1 shell command, wrote 2 memories (ctrl+o to expand)
+
+● The analytics layer is now merged into main, and all 104 tests pass on the
+  merged code. I deleted the analytics-layer branch. Nothing is pushed yet: main
+  is 6 commits ahead of GitHub.
+
+  Three things are left before the Nov 2 deadline:
+  1. One command for the whole pipeline, python -m wprdc.pipeline, which runs
+     the four steps (ingest, load_raw, transform, analytics) in order.
+  2. The README, with the sections the exercise asks for. It must state the
+     question ("Are family transfers of property in Allegheny County rising as
+     the population ages?") and show the output table.
+  3. Push and make the repo public.
+
+> create the one command for the whole pipeline
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● This is a small change, so here's the design in brief before I build it.
+
+  python -m wprdc.pipeline runs the four steps in order, each through its own
+  existing main():
+
+  1. ingest: fetches the CSV from CKAN, or skips the download if CKAN says the
+     data hasn't changed.
+  2. load_raw: loads any new file as a raw snapshot.
+  3. transform: builds the staging and clean tables and runs the data-quality
+     checks.
+  4. analytics: builds the star schema and prints the output table.
+
+  - Stops at the first failure. The failed step is already recorded in
+    ops.fetch_run, as now, and the error is passed on so the command exits
+    non-zero. Later steps don't run, so the previous clean and analytics tables
+    stay as they were.
+  - Re-runnable. Every step already does nothing when there's nothing new.
+    Running the pipeline twice in a row skips the download, loads nothing,
+    re-evaluates nothing and rebuilds identical analytics tables.
+  - Options: just --force, passed to ingest, to download even when the data
+    hasn't changed. The other steps' special modes stay on their own commands:
+    --strategy datastore, --prune-keep, --rebuild. My call: the one command is
+    for the normal run, and the README can point to the special modes.
+  - No extra run record for the pipeline itself, since each step already logs
+    its own run.
+  - Tests:
+    - the steps run in order, and --force reaches ingest
+    - a failing step stops the steps after it
+    - an end-to-end run with the network call replaced by a local CSV
+
+  Shall I build it this way?
+
+> yes
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● I'm writing the tests first.
+
+● Write(tests\test_pipeline.py)
+  ⎿  Wrote 71 lines to tests\test_pipeline.py
+       1 import csv
+       2 import io
+       3
+       4 import duckdb
+       5 import pytest
+       6
+       7 from tests.dq_fixtures import sale
+       8 from tests.test_ingest import RESOURCE_ID, StubCkan
+       9 from wprdc import config, ingest, pipeline
+      10 from wprdc.load_raw import SOURCE_COLUMNS
+     … +61 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● RED, because the module doesn't exist yet. Implementing it.
+
+● Write(wprdc\pipeline.py)  ⎿  Wrote 34 lines to wprdc\pipeline.py
+       1 """Run the whole pipeline: ingest, load_raw, transform, analytic
+         s.
+       2
+       3     python -m wprdc.pipeline            # normal run; skips the
+         download if CKAN says unchanged
+       4     python -m wprdc.pipeline --force    # download even if uncha
+         nged
+       5
+       6 Each step is the same as running its own command, and logs its o
+         wn run in
+     … +28 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All four pass, including the end-to-end run. Next I'll run the full suite and
+  then the real pipeline against WPRDC.
+
+  Ran 2 shell commands, wrote 2 memories (ctrl+o to expand)
+
+● python -m wprdc.pipeline now runs the whole pipeline in one command:
+  wprdc/pipeline.py. It's committed on main (b3bf239), and all 108 tests pass.
+
+  I ran it twice against the real WPRDC source.
+
+  - Run 1: all four steps succeeded and printed the same output table as before.
+  - Run 2: ingest skipped the download because CKAN reported no change, and
+    load_raw had nothing new to load. Transform raised no new data-quality
+    results or alerts. Analytics rebuilt the same tables.
+
+  It works as agreed. It runs ingest, load_raw, transform and analytics in order
+  and stops at the first step that fails, with a non-zero exit code. --force is
+  passed to ingest only, and the special modes stay on their own commands. Each
+  step is labelled in the output, for example == ingest.
+
+  The four new tests cover:
+  - the order of the steps
+  - --force reaching ingest only
+  - a failure stopping the steps after it
+  - an end-to-end run, twice, with CKAN replaced by a small local CSV
+
+  Two things are left before the deadline: the README, and pushing the repo and
+  making it public. main is now 7 commits ahead of GitHub.
+
+> push to github
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● I pushed main to GitHub (1bdf594..b3bf239), so GitHub now has all 7 commits.
+  They include the analytics layer and the pipeline command.
+
+  The repo is still private. The exercise needs it public, but I left that alone
+  because making a repo public is hard to undo. When you're ready, you can do
+  it on GitHub under Settings → Danger Zone → Change visibility, or I can run gh
+  repo edit --visibility public if you tell me to.
+
+  The README is the only other thing left before the Nov 2 deadline.
+
+> hold there, I want to review everything and look at the view before we move
+  forward.  export this conversatoin and save it to the usual place
+  (docs/ai-session), if you can, please.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Stopping here. Nothing more will change until you've reviewed everything.
+
+  I can't save the conversation myself: /export is a command only you can run.
+  To match the earlier transcripts in docs/ai-sessions/, type:
+
+  /export docs/ai-sessions/2026-10-30-153811-lets-pick-up-where-left-off.txt
+
+  Once it's saved, I can commit it and add this session to docs/AI_USAGE.md, as
+  with the earlier ones.
+
+  To look at the view, open the database read-only so it doesn't lock the
+  pipeline:
+
+  -- duckdb -readonly data/wprdc.duckdb
+  SELECT * FROM analytics.family_transfers_by_year;
+
+  The rest is in the analytics schema:
+  - The fact table: analytics.sales.
+  - The five dimensions: municipality, school_district, parcel, sale_type and
+    instrument_type.
+  - Build info: analytics.build_info, which records the snapshot the tables were
+    built from.
