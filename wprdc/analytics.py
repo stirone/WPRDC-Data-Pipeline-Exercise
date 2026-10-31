@@ -19,7 +19,8 @@ import argparse
 import duckdb
 
 from wprdc.db import connect, run_context
-from wprdc.sale_classes import ESTATE_DEEDS, NOT_ANALYZED_CODE, SALE_CLASSES, sale_class_sql
+from wprdc.sale_classes import (ESTATE_DEEDS, NOMINAL_PRICE, NOT_ANALYZED_CODE, SALE_CLASSES,
+                                sale_class_sql)
 from wprdc.transform import CLEAN
 
 SALES = "analytics.sales"
@@ -31,6 +32,23 @@ TABLES = (BUILD_INFO, "analytics.municipality", "analytics.school_district", "an
 # "1st Ward - PITTSBURGH" -> PITTSBURGH. Matched on the whole name: code 911 is
 # Forward, a township.
 WARD_PATTERN = r"^\d+(st|nd|rd|th) Ward\s*-\s*(.+)$"
+
+OUTPUT_COMMENT = ("How many property sales each year were family transfers? "
+                  "Complete years only: those before the year the data was downloaded.")
+OUTPUT_COLUMN_COMMENTS = {
+    "sale_year": "Year of sale_date.",
+    "all_transfers": f"Every sale in {SALES} that year.",
+    "family_transfers": "Sales with sale_class 'family': sale code 3, LOVE AND AFFECTION SALE, "
+                        "on a deed that is not an estate deed.",
+    "family_share": "family_transfers / all_transfers.",
+    "estate_family_transfers": "Sales with sale_class 'estate_family': an estate deed passing "
+                               f"property for nothing (sale code 3 or price <= ${NOMINAL_PRICE}).",
+    "estate_family_share": "estate_family_transfers / all_transfers.",
+    "not_analyzed_transfers": f"Sales with sale code {NOT_ANALYZED_CODE}, SALE NOT ANALYZED. "
+                              "These were never coded, so they cannot count as family: "
+                              "family_transfers is understated in years where this is high "
+                              "(2012, 2018, 2019).",
+}
 
 PARCEL_COLUMNS = ("full_address", "house_number", "house_fraction", "street_direction", "street",
                   "street_suffix", "unit_desc", "unit_no", "city", "state", "zip",
@@ -163,6 +181,14 @@ def _create_output_view(con: duckdb.DuckDBPyConnection) -> None:
                not_analyzed_transfers
         FROM y ORDER BY sale_year
         """)
+    # Comments travel with the view, so anyone querying it can read them
+    # (duckdb_views(), duckdb_columns()) without the repo.
+    # COMMENT ON takes no parameters, hence the quoted literals.
+    def quoted(s: str) -> str:
+        return "'" + s.replace("'", "''") + "'"
+    con.execute(f"COMMENT ON VIEW {OUTPUT} IS {quoted(OUTPUT_COMMENT)}")
+    for column, comment in OUTPUT_COLUMN_COMMENTS.items():
+        con.execute(f"COMMENT ON COLUMN {OUTPUT}.{column} IS {quoted(comment)}")
 
 
 def build_analytics(con: duckdb.DuckDBPyConnection) -> dict:
@@ -195,6 +221,8 @@ def format_output(rows: list[tuple]) -> str:
              f"{header[4]:>15}{header[5]:>8}{header[6]:>14}"]
     for year, n, fam, fam_share, est, est_share, na in rows:
         lines.append(f"{year:<6}{n:>9,}{fam:>9,}{fam_share:>8.1%}{est:>15,}{est_share:>8.1%}{na:>14,}")
+    lines.append(f"\nnot_analyzed: sales with code {NOT_ANALYZED_CODE}, never coded, so they cannot "
+                 "count as family.\nFamily counts are understated in years where it is high.")
     return "\n".join(lines)
 
 

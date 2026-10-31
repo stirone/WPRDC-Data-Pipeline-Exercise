@@ -149,3 +149,13 @@ def test_view_frozen_at_build_time(con):
     assert con.execute(f"SELECT * FROM {OUTPUT}").fetchall() == before
     assert con.execute("SELECT snapshot_id, download_date FROM analytics.build_info").fetchall() == [
         ("s1", date(2026, 10, 28))]
+
+
+def test_output_view_documented(con):
+    build(con, [in_2025()])
+    schema, view = OUTPUT.split(".")
+    comments = dict(con.execute("SELECT column_name, comment FROM duckdb_columns() "
+                                "WHERE schema_name = ? AND table_name = ?", [schema, view]).fetchall())
+    assert comments == analytics_module.OUTPUT_COLUMN_COMMENTS
+    assert con.execute("SELECT comment FROM duckdb_views() WHERE schema_name = ? AND view_name = ?",
+                       [schema, view]).fetchone()[0] == analytics_module.OUTPUT_COMMENT
