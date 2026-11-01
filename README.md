@@ -1,9 +1,3 @@
-# Introduction 
-Thank you so much for this very interesting exercise!  This is an entirely AI-assisted result using Claude Code in Visual Studio Code.  One of my main reasons for completing this assignment and submitting it (besides to remain eligible for consideration for the job) was to find out if you think this is acceptable and appropriate.  I have evolved to using the Genie AI assistant in Databricks in my current job on a daily basis to write Python and SQL, and it is so much more efficient and clear than me writing code directly -- I cannot imagine going back.  However, I am concerned about maintaining AI-assisted code, and I am wondering how that will shake out in real life.  That is why I left the implementation gap (row count failure only prints a warning, doesn't fail the pipeline, as designed but not implemented by Claude) in this code.  You may want to have someone else try to make that fix, using AI or otherwise.  
-
-In addition to the AI_USAGE document here for my AI disclosure statement, I've also included a transcript of every session I had with Claude Code in the folder docs\ai-sessions (linked clearly in [`docs/AI_USAGE.md`](docs/AI_USAGE.md)), in case you want to see exactly how I interacted with Claude.  
-
-
 # WPRDC Property Sales Pipeline
 
 A small, reproducible pipeline for the
@@ -18,6 +12,8 @@ star schema. The deliverable is one output table that answers the question below
   population ages?
 - **Output table:** the view `analytics.family_transfers_by_year`.
 
+**The exercise:** the original assignment is quoted at the [end of this document](#the-exercise).
+
 ## Contents
 
 - [Running it](#running-it)
@@ -30,6 +26,7 @@ star schema. The deliverable is one output table that answers the question below
 - [At 100x scale, or with daily refreshes](#at-100x-scale-or-with-daily-refreshes)
 - [What I didn't do, and why](#what-i-didnt-do-and-why)
 - [AI usage](#ai-usage)
+- [The exercise](#the-exercise)
 
 ## Running it
 
@@ -418,3 +415,26 @@ decisions were mine, where I questioned or corrected the AI, and the AI's mistak
 caught along the way. It links the full session transcripts in
 [`docs/ai-sessions/`](docs/ai-sessions/). The design specs and implementation plans
 for the data quality and analytics layers are in [`docs/superpowers/`](docs/superpowers/).
+
+## The exercise
+
+The assignment as given, verbatim:
+
+> Pick **one** dataset from the list below. Build a small, reproducible pipeline that ingests it from the [WPRDC](https://data.wprdc.org/) CKAN API, produces a clean analytical table, and tells us something useful about the data. Your completed script and markdown document should be available in a public GitHub or GitLab repository.
+>
+> **Requirements**
+>
+> 1. **Ingest** the data programmatically (CKAN API or resource URL). No manual downloads.
+> 2. **Land raw data unchanged**, then transform into a cleaned/modeled layer. Use any local stack you like (Python, SQL, DuckDB, SQLite, Postgres via Docker, dbt, etc). No cloud accounts required.
+> 3. **Make it re-runnable.** Running it twice must not duplicate or corrupt data. Explain how you'd handle the dataset being updated.
+> 4. **Add data quality checks** that would actually fail on bad data. Include at least one check you wrote *because of something you found in this dataset*.
+> 5. **Produce one output table** that could be used to answer a question you chose (state the question).
+> 6. **Write a README.md** covering decision you made in the process: the three most important design decisions and the alternatives you rejected, what surprised you in the data, what you'd do differently at 100x scale or with daily refreshes, and what you didn't do and why.
+> 7. **AI disclosure:** AI tools are allowed. Tell us which you used and for what purpose. We will ask you to walk through your code live should you progress to an interview round.
+>
+> **Data Sets**
+>
+> - Allegheny County Property Sale Transactions
+> - Allegheny County Weights and Measures Inspections
+> - Allegheny County Air Quality
+> - Allegheny County Jail Census
