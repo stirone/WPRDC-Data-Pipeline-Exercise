@@ -47,7 +47,7 @@ def clean_rows(con):
 
 
 def test_clean_excludes_quarantined_and_flags(con):
-    make_snapshot(con, "s1", [sale(), sale(DEEDPAGE="2", RECORDDATE=None),
+    make_snapshot(con, "s1", [sale(), sale(DEEDPAGE="2", RECORDDATE="0212-08-01"),
                               sale(DEEDPAGE="3", RECORDDATE="2022-06-01")])
     result = transform(con, "r1")
     assert clean_rows(con) == [(1, []), (3, ["record_before_sale"])]
@@ -55,18 +55,18 @@ def test_clean_excludes_quarantined_and_flags(con):
 
 
 def test_quarantine_is_by_row_not_key(con):
-    make_snapshot(con, "s1", [sale(), sale(RECORDDATE=None)])   # same key, only row 2 quarantined
+    make_snapshot(con, "s1", [sale(), sale(RECORDDATE="0212-08-01")])   # same key, only row 2 quarantined
     transform(con, "r1")
     assert clean_rows(con) == [(1, ["key_not_unique"])]
 
 
 def test_action_change_releases_records(con):
-    make_snapshot(con, "s1", [sale(RECORDDATE=None)])
+    make_snapshot(con, "s1", [sale(RECORDDATE="0212-08-01")])
     transform(con, "r1")
     assert clean_rows(con) == []
-    flagged = [replace(c, action="flag") if c.id == "record_date_missing" else c for c in CHECKS]
+    flagged = [replace(c, action="flag") if c.id == "record_date_invalid" else c for c in CHECKS]
     transform(con, "r2", flagged)
-    assert clean_rows(con) == [(1, ["record_date_missing"])]
+    assert clean_rows(con) == [(1, ["record_date_invalid"])]
 
 
 def test_transform_rerun_is_noop(con):

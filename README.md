@@ -1,9 +1,7 @@
 # Introduction 
-Thank you so much for this very interesting exercise!  This is an entirely AI-assisted result using Claude Code in Visual Studio Code.  One of my main reasons for completing this assignment and submitting it (besides to remain eligible for consideration for the job) was to find out if you think this is acceptable and appropriate.  I have evolved to using the Genie AI assistant in Databricks in my current job on a daily basis to write Python and SQL, and it is so much more efficient and clear than me writing code directly -- I cannot imagine going back.  I am concerned about maintaining AI-assisted code, however, and I am wondering how that will shake out in real life.  That is why I left the implementation gap (row count failure only prints a warning, doesn't fail the pipeline, as designed but not implemented by Claude) in this code.  You may want to have someone else try to make that fix.  
+Thank you so much for this very interesting exercise!  This is an entirely AI-assisted result using Claude Code in Visual Studio Code.  One of my main reasons for completing this assignment and submitting it (besides to remain eligible for consideration for the job) was to find out if you think this is acceptable and appropriate.  I have evolved to using the Genie AI assistant in Databricks in my current job on a daily basis to write Python and SQL, and it is so much more efficient and clear than me writing code directly -- I cannot imagine going back.  However, I am concerned about maintaining AI-assisted code, and I am wondering how that will shake out in real life.  That is why I left the implementation gap (row count failure only prints a warning, doesn't fail the pipeline, as designed but not implemented by Claude) in this code.  You may want to have someone else try to make that fix, using AI or otherwise.  
 
-In addition to the AI_USAGE document here for my AI disclosure statement, I've also included a transcript of every session I had with Claude Code in the folder docs\ai-sessions, in case you want to see exactly how I interacted with Claude.  
-
-
+In addition to the AI_USAGE document here for my AI disclosure statement, I've also included a transcript of every session I had with Claude Code in the folder docs\ai-sessions (linked clearly in [`docs/AI_USAGE.md`](docs/AI_USAGE.md)), in case you want to see exactly how I interacted with Claude.  
 
 
 # WPRDC Property Sales Pipeline
@@ -41,7 +39,6 @@ python -m venv .venv
 pip install -r requirements.txt
 
 python -m wprdc.pipeline        # ingest, load_raw, transform, analytics
-python -m pytest                # 109 tests, about 2 minutes
 ```
 
 The first run downloads about 105 MB and builds `data/wprdc.duckdb` (about 300 MB with
@@ -89,6 +86,19 @@ ops.*  logs every run, every HTTP request and every downloaded file
 | `dq` | Check results per snapshot, failure rates, the issue list with resolutions, and alerts |
 | `clean` | `property_sales`: the typed rows minus quarantined ones, with a `dq_flags` list |
 | `analytics` | Fact `sales`; dimensions `parcel`, `municipality` (with Pittsburgh, Clairton, Duquesne and McKeesport wards rolled up), `school_district`, `sale_type`, `instrument_type`; the output view |
+
+How the analytics tables join:
+
+```
+analytics.municipality    analytics.school_district
+           └──────────────────┬───────┘
+                      analytics.parcel
+                              │
+analytics.sale_type ── analytics.sales ── analytics.instrument_type
+                              │
+                              ▼
+             analytics.family_transfers_by_year
+```
 
 **Ingest** asks CKAN for the resource's metadata and skips the download if
 `last_modified` matches the last successful fetch. Otherwise it downloads the full CSV
@@ -173,6 +183,37 @@ The checks serve two people:
   than doubles, by at least 10 records, between snapshots. A check whose normal count
   is zero (the last three above) alerts on its first failure. Alerts are recorded and
   printed where an email would be sent; sending the email is not built.
+
+### Changing or adding a check
+
+Checks are changed in code by the engineer and reviewed through git. After any change,
+run `python -m wprdc.pipeline`. The new definitions apply to the current snapshot even
+if WPRDC hasn't published a new file.
+
+**To change a check from quarantine to flag** (for example, `record_date_missing`),
+change its `action="quarantine"` to `action="flag"` in
+[`wprdc/checks.py`](wprdc/checks.py). On the next run, its records move into
+`clean.property_sales` with the check's name in `dq_flags`, and its open issues stay
+open with their action updated. The tests don't depend on any check's action, so
+`python -m pytest` still passes.
+
+**To change what a check catches**, edit its `where` condition. This gives the check a
+new version. Its open issues that no longer fail close as `rule_changed`, and the
+engineer gets a `definition_changed` notice instead of a rate alert.
+
+**To add a check**, append a `Check` to `CHECKS` with:
+
+- an `id`
+- a `description`
+- an `action` (`quarantine` or `flag`)
+- a `where` condition: SQL over `staging.property_sales_typed` selecting the failing
+  records. A subquery refers to that table as `typed`.
+
+Set `alert="any"` if the check should normally find nothing and should alert on its
+first failure. Add a test for the condition in [`tests/test_dq.py`](tests/test_dq.py).
+
+**To remove a check**, set `retired=True`. Don't delete it, so its history stays
+readable.
 
 ## The question and the output table
 
@@ -273,33 +314,46 @@ doubtful record. "Recorded before the sale" looks impossible, but corrective dee
 and the county's own `RECORD YR <> SALE YR` sale code, make some of those legitimate.
 
 ## What surprised me in the data
+_Editor's note:_ the only thing that truly surprised me here was the 1,248 records that have no record date.  That seems to be an important field!  In fact, I coded this as a quarantine data quality check, with misgivings, since the current data is what it is, and I didn't want to come in and question someone else's previous decisions.  However, I left it as a quarantine check for two reasons: 1) to prevent any future data coming in from having no record date; and 2) so that the reviewer of this assignment could see how easy (or not) it would be to make the change from quarantine to flag on that check.  
+
+I'm leaving the list of "surprises" that Claude Code came up with below, with my comments on each of them.  
 
 - **The download file mixes line endings.** The header ends in CRLF and the data rows
   in LF. DuckDB's strict CSV reader rejects the file, so it is loaded in relaxed mode,
-  with a separate structural check that every row has the header's width.
+  with a separate structural check that every row has the header's width. 
+  - Didn't even notice this, and not surprised by it, nor bothered by it. In fact, I am glad someone didn't waste time cleaning up the header to match the data rows, as that is easily handled downstream.
 - **`_id` is regenerated on every refresh.** The values start near 17 million and
-  change each time, so they can't be used as a key.
+  change each time, so they can't be used as a key. 
+  - Not surprised or bothered by this.  It would be nice to have a simple provided id like this we could trust, but that doesn't always happen.
 - **WPRDC changes very little each refresh.** About 500 row versions are added and
   200–240 removed a day, out of about 507,000. The other rows hash identically even
-  though their `_id` values changed.
+  though their `_id` values changed. 
+  - Not surprised by this, and I don't understand why Claude expected more.
 - **The obvious natural key is only unique by accident.** For the 2,821 records with no
   real deed reference (mostly mobile home sales), placeholder deed numbers are spelled
   `0`, `00`, `000`, and those spellings are all that separates otherwise identical
-  records. That became the `possible_duplicate` check.
+  records. That became the `possible_duplicate` check.  
+  - Not surprised, but I am still unsure what the natural key is in this data, and bothered that I can't find a definitive one.
 - **Impossible dates:** a record date of `0212-08-01` (presumably 2012), record dates
-  before the data's 2012 start, and a record date in the future.
+  before the data's 2012 start, and a record date in the future. 
+  - Not surprised this exists in the data, as it is only one and the world is imperfect.  This is coded as a quarantine check going forward, however, to prevent this from occurring from now on.
 - **1,248 records have no record date.** Most are mobile home sales, certificates of
-  transfer and lease memoranda, which may never be recorded. So "missing" may mean "not
+  transfer, treasurer deeds and lease memoranda, which may never be recorded. So "missing" may mean "not
   applicable". I quarantined them for now, but I'd want the data steward's view; making
-  it a flag is a one-word change.
+  it a flag is a one-word change (see [Changing or adding a check](#changing-or-adding-a-check)).  
+  - As described above, this is the only thing that really surprised me in the data so far.
 - **Most transfers are not market sales.** Of about 506,000 sales, 98,813 carry the
   assessor's "valid sale" codes. Over half are coded as multi-parcel sales, quit claims,
-  invalid for time on market, corrective deeds and similar.
+  invalid for time on market, corrective deeds and similar.  
+  - This didn't surprise me, as I didn't even know what is meant by "market sales" before I started this project.
 - **Sale code 37, "estate sale", is applied unevenly:** 0 uses in 2012, 451 in 2015, 33
-  in 2022. That is why it never feeds the family counts.
+  in 2022. That is why it never feeds the family counts.  
+  - This doesn't surprise me, it reflects changing business processes and probably staffing changes over the years.  Automation, if possible, would help bring consistency to the data going forward.
 - **WPRDC's 502 errors come from its own nginx server, not the CDN.** They return in
   about 80 ms with nginx's error page, meaning the CKAN application behind it refused
-  the connection.
+  the connection. 
+  - Entirely Claude's surprise, as I had no understanding of how the connections worked before Claude educated me. I still would not consider myself knowledgeable in this area at all. I'm really only including it here to pass on this information to you, in case anyone else has been complaining about flaky connections. Perhaps this insight might help, if it isn't known already.
+
 
 ## At 100x scale, or with daily refreshes
 
@@ -354,8 +408,10 @@ About 50 million rows and 10 GB per download, every day:
 
 ## AI usage
 
+Note:  [`docs/AI_USAGE.md`](docs/AI_USAGE.md) is a useful write-up of my AI usage in this project.  Below is just a quick summary.
+
 I used Claude.ai for early exploration of the datasets and the CKAN API, and Claude
-Code (Claude Opus 5.5) to write nearly all of the code, SQL and tests and to run them.
+Code (Claude Opus 5.5) to write all of the code, SQL and tests and to run them.
 I set the direction and made the design decisions, and I'm prepared to walk through and
 defend any part of the code. [`docs/AI_USAGE.md`](docs/AI_USAGE.md) lists which
 decisions were mine, where I questioned or corrected the AI, and the AI's mistakes

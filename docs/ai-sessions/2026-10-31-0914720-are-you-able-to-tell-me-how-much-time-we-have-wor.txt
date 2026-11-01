@@ -1,0 +1,1578 @@
+
+> <browser_instruction># Claude in Chrome browser automation
+
+  You have access to browser automation tools (mcp__claude-in-chrome__*) for
+  interacting with web pages in Chrome. Follow these guidelines for effective
+  browser automation.
+
+  ## Loading deferred tools
+
+  If the mcp__claude-in-chrome__* tools are deferred (must be loaded via
+  ToolSearch before use), load every tool you expect to need in ONE ToolSearch
+  call — the select query accepts a comma-separated list — never one call per
+  tool. Start with the core set:
+
+  ToolSearch with query
+  "select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__naviga
+  te,mcp__claude-in-chrome__computer,mcp__claude-in-chrome__read_page,mcp__clau
+  de-in-chrome__tabs_create_mcp,mcp__claude-in-chrome__tabs_close_mcp"
+
+  Add task-specific tools to the same call when the task obviously needs them:
+  read_console_messages / read_network_requests for debugging, form_input for
+  forms, gif_creator for recordings, javascript_tool for page scripting.
+
+  ## GIF recording
+
+  When performing multi-step browser interactions that the user may want to
+  review or share, use mcp__claude-in-chrome__gif_creator to record them.
+
+  You must ALWAYS:
+  * Capture extra frames before and after taking actions to ensure smooth
+  playback
+  * Name the file meaningfully to help the user identify it later (e.g.,
+  "login_process.gif")
+
+  ## Console log debugging
+
+  You can use mcp__claude-in-chrome__read_console_messages to read console
+  output. Console output may be verbose. If you are looking for specific log
+  entries, use the 'pattern' parameter with a regex-compatible pattern. This
+  filters results efficiently and avoids overwhelming output. For example, use
+  pattern: "[MyApp]" to filter for application-specific logs rather than
+  reading all console output.
+
+  ## Alerts and dialogs
+
+  IMPORTANT: Do not trigger JavaScript alerts, confirms, prompts, or browser
+  modal dialogs through your actions. These browser dialogs block all further
+  browser events and will prevent the extension from receiving any subsequent
+  commands. Instead, when possible, use console.log for debugging and then use
+  the mcp__claude-in-chrome__read_console_messages tool to read those log
+  messages. If a page has dialog-triggering elements:
+  1. Avoid clicking buttons or links that may trigger alerts (e.g., "Delete"
+  buttons with confirmation dialogs)
+  2. If you must interact with such elements, warn the user first that this may
+  interrupt the session
+  3. Use mcp__claude-in-chrome__javascript_tool to check for and dismiss any
+  existing dialogs before proceeding
+
+  If you accidentally trigger a dialog and lose responsiveness, inform the user
+  they need to manually dismiss it in the browser.
+
+  ## Avoid rabbit holes and loops
+
+  When using browser automation tools, stay focused on the specific task. If
+  you encounter any of the following, stop and ask the user for guidance:
+  - Unexpected complexity or tangential browser exploration
+  - Browser tool calls failing or returning errors after 2-3 attempts
+  - No response from the browser extension
+  - Page elements not responding to clicks or input
+  - Pages not loading or timing out
+  - Unable to complete the browser task despite multiple approaches
+
+  Explain what you attempted, what went wrong, and ask how the user would like
+  to proceed. Do not keep retrying the same failing browser action or explore
+  unrelated pages without checking in first.
+
+  ## Tab context and session startup
+
+  IMPORTANT: At the start of each browser automation session, call
+  mcp__claude-in-chrome__tabs_context_mcp first to get information about the
+  user's current browser tabs. Use this context to understand what the user
+  might want to work with before creating new tabs.
+
+  Never reuse tab IDs from a previous/other session. Follow these guidelines:
+  1. Only reuse an existing tab if the user explicitly asks to work with it
+  2. Otherwise, create a new tab with mcp__claude-in-chrome__tabs_create_mcp
+  3. If a tool returns an error indicating the tab doesn't exist or is invalid,
+  call tabs_context_mcp to get fresh tab IDs
+  4. When a tab is closed by the user or a navigation error occurs, call
+  tabs_context_mcp to see what tabs are available</browser_instruction>
+
+> are you able to tell me how much time we have worked on this project?  Do you
+  know the begin and end times of the sessions we have had on this project?
+
+● I can work it out from the Claude Code session logs on disk. Let me check
+  them.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Now the start/end times and active time inside each session log (time between
+  messages, counting gaps over 15 minutes as breaks):
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● There's a second log folder with a capitalized drive letter. Let me include
+  it.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Yes. Claude Code keeps a log of every session, and I read the timestamps from
+  those logs and from the git history. There have been 6 sessions, all in your
+  local time:
+
+  ┌─────┬──────┬───────┬───────┬─────────┬─────────┬───────────────────────┐
+  │  #  │ Date │ Start │  End  │ Elapsed │ Active* │  What got done (per   │
+  │     │      │       │       │         │         │       commits)        │
+  ├─────┼──────┼───────┼───────┼─────────┼─────────┼───────────────────────┤
+  │     │ Mon  │       │       │         │         │ CKAN fetch, raw       │
+  │ 1   │ Oct  │ 3:23  │ 5:08  │ 1h 45m  │ 1h 45m  │ snapshots, row        │
+  │     │ 26   │ pm    │ pm    │         │         │ hashes/diffs, AI      │
+  │     │      │       │       │         │         │ usage doc             │
+  ├─────┼──────┼───────┼───────┼─────────┼─────────┼───────────────────────┤
+  │     │ Wed  │       │       │         │         │ Data quality checks:  │
+  │ 2   │ Oct  │ 5:45  │ 10:08 │ 4h 23m  │ ~2h 31m │ design, plan,         │
+  │     │ 28   │ pm    │  pm   │         │         │ implementation,       │
+  │     │      │       │       │         │         │ review fixes          │
+  ├─────┼──────┼───────┼───────┼─────────┼─────────┼───────────────────────┤
+  │     │ Fri  │       │       │         │         │ Moved the typed table │
+  │ 3   │ Oct  │ 12:06 │ 1:07  │ 1h 01m  │ 1h 01m  │  to staging;          │
+  │     │ 30   │  pm   │ pm    │         │         │ analytics question    │
+  │     │      │       │       │         │         │ discussion            │
+  ├─────┼──────┼───────┼───────┼─────────┼─────────┼───────────────────────┤
+  │     │ Fri  │ 2:34  │ 3:38  │         │         │ Analytics layer,      │
+  │ 4   │ Oct  │ pm    │ pm    │ 1h 04m  │ 1h 04m  │ output view, python   │
+  │     │ 30   │       │       │         │         │ -m wprdc.pipeline     │
+  ├─────┼──────┼───────┼───────┼─────────┼─────────┼───────────────────────┤
+  │     │ Fri  │ 8:37  │ 8:50  │         │         │ Documented the output │
+  │ 5   │ Oct  │ pm    │ pm    │ 13m     │ 13m     │  view's columns       │
+  │     │ 30   │       │       │         │         │                       │
+  ├─────┼──────┼───────┼───────┼─────────┼─────────┼───────────────────────┤
+  │     │ Sat  │ 9:14  │       │         │         │                       │
+  │ 6   │ Oct  │ am    │ (now) │ ~1m     │ ~1m     │ This question         │
+  │     │ 31   │       │       │         │         │                       │
+  └─────┴──────┴───────┴───────┴─────────┴─────────┴───────────────────────┘
+
+  *"Active" leaves out any gap of more than 15 minutes between messages. The
+  only session with a real break is Oct 28. Its commits stop at 6:24 pm and pick
+  up again at 9:34 pm, so you probably stepped away for about 2–3 hours that
+  evening.
+
+  Totals: about 8.4 hours from start to end of each session added up, or about
+  6.6 hours of active time.
+
+  Some caveats:
+  - These numbers only cover time spent in Claude Code. Anything you did outside
+    it isn't counted, such as reading the exercise, exploring the data in the
+    DuckDB CLI, or writing on your own. The repo's initial commit is at 3:11 pm
+    on Oct 26, 12 minutes before the first session, for example.
+  - An "active" span means the conversation was in progress. It doesn't mean you
+    were at the keyboard the whole time, since some of it was me running tools.
+
+> Great, thanks.  I think we only have a little left to satisfy the job
+  application project requirements, correct?
+
+● Let me check the requirements against what's in the repo.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Yes, mostly. The pipeline itself is finished. What's left is writing and
+  submitting it. Here's where each requirement stands:
+
+  Done (code is on main and pushed to GitHub)
+  - Ingest through the CKAN API, a raw landing layer, and cleaned/typed tables
+  - Re-runnable: snapshots, row hashes, diffs, --force
+  - Data quality checks that fail on bad data, including ones prompted by this
+    dataset (sale_code_unmapped, parcel_location_varies)
+  - One output table: analytics.family_transfers_by_year
+  - A single command that runs every step: python -m wprdc.pipeline
+  - AI disclosure: docs/AI_USAGE.md, plus the session transcripts in
+    docs/ai-sessions/
+
+  Remaining
+  1. README.md. This is the main gap. Right now it's only a title line. It
+     needs:
+     - Your question ("Are family transfers of property in Allegheny County
+       rising as the population ages?") and the output table that answers it
+     - How to run the pipeline, and how it handles reruns and dataset updates
+     - The three most important design decisions, and the alternatives you
+       rejected
+     - What surprised you in the data
+     - What you'd do differently at 100x scale or with daily refreshes
+     - What you didn't do, and why
+     - A link to the AI usage doc
+  2. Make the repo public. It's private right now
+     (stirone/WPRDC-Data-Pipeline-Exercise), and the reviewers won't be able to
+     open it until that changes.
+  3. Submit by email by 11:00 am on Mon Nov 2.
+
+  Optionally, before you submit, do one clean run from a fresh clone to confirm
+  the setup instructions in the README actually work.
+
+  The README is the real work left. Most of what goes in it already exists in
+  the specs, the AI usage doc and the transcripts, so it's a matter of pulling
+  that together rather than writing from scratch. Want me to draft it now? You'd
+  want to review and rewrite parts of it in your own voice, since the reviewers
+  will be reading it as your judgment.
+
+> yes, draft it now
+
+  Ran 4 shell commands (ctrl+o to expand)
+
+● Now the real output numbers from the current database:
+
+  Ran 5 shell commands (ctrl+o to expand)
+
+● While the tests run, a couple more facts for the run instructions:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Background command "Snapshot changes, request outcomes, and test run"
+completed (exit code 0)
+
+  Read 1 file (ctrl+o to expand)
+
+● All 109 tests pass. Writing the README now.
+
+  Read 1 file (ctrl+o to expand)
+
+● Write(README.md)
+  ⎿  Added 351 lines, removed 1 line
+        1 -# WPRDC-Data-Pipeline-Exercise                                
+        1   No newline at end of file
+        2 +# WPRDC Property Sales Pipeline                               
+        3 +                                                              
+        4 +A small, reproducible pipeline for the                        
+        5 +[Allegheny County Property Sale Transactions](https://data.wpr
+          +dc.org/dataset/real-estate-sales)                             
+        6 +dataset on the Western Pennsylvania Regional Data Center (WPRD
+          +C). It downloads the data                                     
+        7 +through the CKAN API, archives each download as delivered, loa
+          +ds it into DuckDB as an                                       
+        8 +immutable snapshot, runs data quality checks, and builds a cle
+          +aned table and a small                                        
+        9 +star schema. The deliverable is one output table that answers 
+          +the question below.                                           
+       10 +                                                              
+       11 +- **Stack:** Python 3.13, DuckDB 1.5.6, `requests`, `pytest`. 
+          +No other services.                                            
+       12 +- **Question:** Are family transfers of property in Allegheny 
+          +County rising as the                                          
+       13 +  population ages?                                            
+       14 +- **Output table:** the view `analytics.family_transfers_by_ye
+          +ar`.                                                          
+       15 +                                                              
+       16 +## Contents                                                   
+       17 +                                                              
+       18 +- [Running it](#running-it)                                   
+       19 +- [How it works](#how-it-works)                               
+       20 +- [Re-runs and dataset updates](#re-runs-and-dataset-updates) 
+       21 +- [Data quality checks](#data-quality-checks)                 
+       22 +- [The question and the output table](#the-question-and-the-ou
+          +tput-table)                                                   
+       23 +- [Three most important design decisions](#three-most-importan
+          +t-design-decisions)                                           
+       24 +- [What surprised me in the data](#what-surprised-me-in-the-da
+          +ta)                                                           
+       25 +- [At 100x scale, or with daily refreshes](#at-100x-scale-or-w
+          +ith-daily-refreshes)                                          
+       26 +- [What I didn't do, and why](#what-i-didnt-do-and-why)       
+       27 +- [AI usage](#ai-usage)                                       
+       28 +                                                              
+       29 +## Running it                                                 
+       30 +                                                              
+       31 +```sh                                                         
+       32 +python -m venv .venv                                          
+       33 +.venv/Scripts/activate          # Windows; on macOS/Linux: sou
+          +rce .venv/bin/activate                                        
+       34 +pip install -r requirements.txt                               
+       35 +                                                              
+       36 +python -m wprdc.pipeline        # ingest, load_raw, transform,
+          + analytics                                                    
+       37 +python -m pytest                # 109 tests, about 2 minutes  
+       38 +```                                                           
+       39 +                                                              
+       40 +The first run downloads about 105 MB and builds `data/wprdc.du
+          +ckdb` (about 300 MB with                                      
+       41 +a few snapshots). Everything under `data/` is created by the p
+          +ipeline and is not in git.                                    
+       42 +The run ends by printing the output table.                    
+       43 +                                                              
+       44 +`python -m wprdc.pipeline --force` downloads even when CKAN re
+          +ports no change. Each                                         
+       45 +step can also be run on its own (`python -m wprdc.ingest`, `wp
+          +rdc.load_raw`,                                                
+       46 +`wprdc.transform`, `wprdc.analytics`). Maintenance options are
+          + on the steps:                                                
+       47 +`python -m wprdc.load_raw --prune-keep N` drops the rows of al
+          +l but the N newest                                            
+       48 +snapshots, and `--rebuild` reloads the raw layer from the CSV 
+          +archive.                                                      
+       49 +                                                              
+       50 +To browse the tables, open the database with the DuckDB 1.5.6 
+          +CLI, for example                                              
+       51 +`duckdb data/wprdc.duckdb -ui`. The versions are pinned becaus
+          +e a newer DuckDB writes                                       
+       52 +a storage format that older CLIs cannot open.                 
+       53 +                                                              
+       54 +## How it works                                               
+       55 +                                                              
+       56 +```                                                           
+       57 +CKAN API ──> data/raw/…/*.csv            every download, uncha
+          +nged and kept   (ingest)                                      
+       58 +               │                                              
+       59 +               ▼                                              
+       60 +          raw.property_sales             one immutable snapsho
+          +t per distinct file (load_raw)                                
+       61 +               │                                              
+       62 +               ▼                                              
+       63 +          staging.property_sales_typed   typed and trimmed, ev
+          +ery row          (transform)                                  
+       64 +               ├── checks ──> dq.*       results, steward's is
+          +sue list, alerts                                              
+       65 +               ▼                                              
+       66 +          clean.property_sales           minus quarantined row
+          +s, with dq_flags                                              
+       67 +               │                                              
+       68 +               ▼                                              
+       69 +          analytics.sales + dimensions   star schema          
+          +                 (analytics)                                  
+       70 +               │                                              
+       71 +               ▼                                              
+       72 +          analytics.family_transfers_by_year   the output tabl
+          +e (a view)                                                    
+       73 +                                                              
+       74 +ops.*  logs every run, every HTTP request and every downloaded
+          + file                                                         
+       75 +```                                                           
+       76 +                                                              
+       77 +| Schema | What it holds |                                    
+       78 +|---|---|                                                     
+       79 +| `ops` | `fetch_run` (one row per command run), `fetch_attemp
+          +t` (every HTTP request: timing, status, response classificatio
+          +n, headers), `fetch_resource` (every file downloaded, with its
+          + SHA-256, row count and CKAN `last_modified`) |               
+       80 +| `raw` | `property_sales`: all source columns as text, plus `
+          +snapshot_id` and a row hash. `v_snapshots` lists snapshots; `v
+          +_snapshot_changes` counts rows added and removed between conse
+          +cutive snapshots |                                            
+       81 +| `staging` | `property_sales_typed`: the latest snapshot with
+          + dates and prices typed, text trimmed, and a record key |     
+       82 +| `dq` | Check results per snapshot, failure rates, the issue 
+          +list with resolutions, and alerts |                           
+       83 +| `clean` | `property_sales`: the typed rows minus quarantined
+          + ones, with a `dq_flags` list |                               
+       84 +| `analytics` | Fact `sales`; dimensions `parcel`, `municipali
+          +ty` (with Pittsburgh, Clairton, Duquesne and McKeesport wards 
+          +rolled up), `school_district`, `sale_type`, `instrument_type`;
+          + the output view |                                            
+       85 +                                                              
+       86 +**Ingest** asks CKAN for the resource's metadata and skips the
+          + download if                                                  
+       87 +`last_modified` matches the last successful fetch. Otherwise i
+          +t downloads the full CSV                                      
+       88 +dump into a run-stamped path, checks that every row has as man
+          +y fields as the header                                        
+       89 +and that the row count matches CKAN's total, and only then ren
+          +ames the file into place.                                     
+       90 +                                                              
+       91 +**load_raw** checks the header against the expected columns (a
+          +n added, missing or                                           
+       92 +reordered column fails the run) and loads each new file as one
+          + snapshot, in one                                             
+       93 +transaction. The snapshot ID is the file's SHA-256.           
+       94 +                                                              
+       95 +**transform** types the latest snapshot, evaluates the checks,
+          + and rebuilds the clean                                       
+       96 +table. **analytics** rebuilds the star schema from the clean t
+          +able and prints the                                           
+       97 +output. Each step is one logged run in one transaction: if it 
+          +fails, the run is                                             
+       98 +recorded as failed and the previous tables stay in place.     
+       99 +                                                              
+      100 +## Re-runs and dataset updates                                
+      101 +                                                              
+      102 +Running the pipeline twice changes nothing:                   
+      103 +                                                              
+      104 +- **Ingest** downloads nothing if CKAN's `last_modified` is un
+          +changed. A forced                                             
+      105 +  download of an identical file produces the same SHA-256, so 
+          +it is recognized as an                                        
+      106 +  existing snapshot and not loaded again.                     
+      107 +- **load_raw** loads a snapshot in a single transaction, so a 
+          +half-loaded snapshot                                          
+      108 +  cannot exist, and a snapshot that is already loaded is skipp
+          +ed.                                                           
+      109 +- **Check results and alerts** are written once per (snapshot,
+          + check version).                                              
+      110 +  Re-evaluating the same snapshot writes nothing.             
+      111 +- **Clean and analytics tables** are rebuilt in full from the 
+          +latest snapshot. Every                                        
+      112 +  rule depends only on the data and the snapshot's download da
+          +te, never on the date                                         
+      113 +  the pipeline runs, so the same snapshot always gives the sam
+          +e tables.                                                     
+      114 +                                                              
+      115 +WPRDC republishes the whole file, usually early each morning. 
+          +When `last_modified`                                          
+      116 +changes, the pipeline downloads the new file and adds it as a 
+          +new snapshot; older                                           
+      117 +snapshots and every downloaded CSV are kept. Because each snap
+          +shot is complete,                                             
+      118 +deletions in the source are visible, and comparing row hashes 
+          +between snapshots shows                                       
+      119 +exactly what changed. In the three snapshots taken so far (Oct
+          + 26, 28 and 30), each                                         
+      120 +refresh added about 500 row versions and removed about 200–240
+          +, out of about 507,000                                        
+      121 +rows. The steward's issue list notices when a flagged record i
+          +s fixed, replaced by a                                        
+      122 +new version, or removed.                                      
+      123 +                                                              
+      124 +The CSV archive is the permanent record. The DuckDB raw tables
+          + are working storage:                                         
+      125 +old snapshots can be pruned, and the raw layer can be rebuilt 
+          +from the archive.                                             
+      126 +                                                              
+      127 +## Data quality checks                                        
+      128 +                                                              
+      129 +The checks are defined in [`wprdc/checks.py`](wprdc/checks.py)
+          +. Each one is a SQL                                           
+      130 +condition that selects failing records, plus an action. Every 
+          +check below came from                                         
+      131 +profiling this dataset. Counts are from the Oct 30 snapshot (5
+          +06,991 rows).                                                 
+      132 +                                                              
+      133 +| Check | Rule | Action | Failing |                           
+      134 +|---|---|---|---|                                             
+      135 +| `sale_date_invalid` | Sale date unparseable or before 2012 (
+          +the source's apparent start) | quarantine | 0 |               
+      136 +| `record_date_invalid` | Record date unparseable or before 20
+          +12, e.g. year `0212` | quarantine | 4 |                       
+      137 +| `record_date_future` | Record date after the day the file wa
+          +s downloaded | quarantine | 0 (1 on Oct 28) |                 
+      138 +| `record_date_missing` | No record date | quarantine | 1,248 
+          +|                                                             
+      139 +| `record_before_sale` | Recorded before the sale date | flag 
+          +| 726 |                                                       
+      140 +| `possible_duplicate` | Same parcel and sale date, no real de
+          +ed reference, differing only in how the placeholder zeros are 
+          +spelled | flag | 43 |                                         
+      141 +| `key_not_unique` | Two rows share the record key | flag + al
+          +ert | 0 |                                                     
+      142 +| `sale_code_unmapped` | A sale code the classification doesn'
+          +t know | flag + alert | 0 |                                   
+      143 +| `parcel_location_varies` | A parcel appears in more than one
+          + municipality or school district | flag + alert | 0 |         
+      144 +                                                              
+      145 +What each outcome means:                                      
+      146 +                                                              
+      147 +- **Quarantine:** the record is impossible and is held out of 
+          +`clean.property_sales`.                                       
+      148 +- **Flag:** the record is doubtful but may be legitimate. It s
+          +tays in, with the check                                       
+      149 +  in its `dq_flags`. For example, a corrective deed can be rec
+          +orded before its sale                                         
+      150 +  date.                                                       
+      151 +- **Fail the run:** reserved for structural problems, where ca
+          +rrying on would be                                            
+      152 +  wrong: a changed header, a row with the wrong number of fiel
+          +ds, a downloaded row                                          
+      153 +  count that doesn't match CKAN's total, or a table that can't
+          + be built. The run is                                         
+      154 +  marked failed and the previous tables stay.                 
+      155 +                                                              
+      156 +The checks serve two people:                                  
+      157 +                                                              
+      158 +- **The data steward** works through `dq.v_open_issues` at the
+          +ir own pace. Fixes                                            
+      159 +  happen in the county's source system. On the next refresh th
+          +e pipeline records each                                       
+      160 +  resolved issue as `fixed`, `replaced` (linked to the new rec
+          +ord) or `removed`, so a                                       
+      161 +  deletion is never reported as a fix. Changing a check's rule
+          + records `rule_changed`.                                      
+      162 +- **The data engineer** gets an alert in `dq.alert` when a che
+          +ck's failure rate more                                        
+      163 +  than doubles, by at least 10 records, between snapshots. A c
+          +heck whose normal count                                       
+      164 +  is zero (the last three above) alerts on its first failure. 
+          +Alerts are recorded and                                       
+      165 +  printed where an email would be sent; sending the email is n
+          +ot built.                                                     
+      166 +                                                              
+      167 +## The question and the output table                          
+      168 +                                                              
+      169 +**Are family transfers of property in Allegheny County rising 
+          +as the population ages?**                                     
+      170 +                                                              
+      171 +The hypothesis is that as owners age, more property passes to 
+          +family members, either                                        
+      172 +directly, as a "love and affection" transfer (sale code 3, typ
+          +ically for $1), or through                                    
+      173 +an estate after a death. The view `analytics.family_transfers_
+          +by_year` counts both,                                         
+      174 +by year, against all recorded transfers. Current output (Oct 3
+          +0 snapshot):                                                  
+      175 +                                                              
+      176 +| sale_year | all_transfers | family_transfers | family_share 
+          +| estate_family_transfers | estate_family_share | not_analyzed
+          +_transfers |                                                  
+      177 +|---:|---:|---:|---:|---:|---:|---:|                          
+      178 +| 2012 | 33,459 | 7,138 | 0.2133 | 224 | 0.0067 | 9,903 |     
+      179 +| 2013 | 33,761 | 6,519 | 0.1931 | 240 | 0.0071 | 882 |       
+      180 +| 2014 | 33,307 | 6,719 | 0.2017 | 206 | 0.0062 | 120 |       
+      181 +| 2015 | 34,416 | 6,752 | 0.1962 | 185 | 0.0054 | 108 |       
+      182 +| 2016 | 35,856 | 6,708 | 0.1871 | 213 | 0.0059 | 40 |        
+      183 +| 2017 | 35,263 | 6,490 | 0.1840 | 181 | 0.0051 | 473 |       
+      184 +| 2018 | 36,472 | 6,498 | 0.1782 | 200 | 0.0055 | 1,999 |     
+      185 +| 2019 | 35,666 | 6,605 | 0.1852 | 219 | 0.0061 | 1,665 |     
+      186 +| 2020 | 35,342 | 7,027 | 0.1988 | 178 | 0.0050 | 6 |         
+      187 +| 2021 | 40,225 | 8,061 | 0.2004 | 280 | 0.0070 | 5 |         
+      188 +| 2022 | 34,826 | 6,963 | 0.1999 | 275 | 0.0079 | 3 |         
+      189 +| 2023 | 30,859 | 6,747 | 0.2186 | 301 | 0.0098 | 2 |         
+      190 +| 2024 | 31,111 | 6,835 | 0.2197 | 293 | 0.0094 | 2 |         
+      191 +| 2025 | 31,555 | 7,191 | 0.2279 | 330 | 0.0105 | 0 |         
+      192 +                                                              
+      193 +| Column | Meaning |                                          
+      194 +|---|---|                                                     
+      195 +| `all_transfers` | Every recorded deed transfer that year, of
+          + any kind, including $1 transfers. A "sale" in this dataset is
+          + any recorded transfer, not only a market sale. |             
+      196 +| `family_transfers` | Love and affection transfers (code 3), 
+          +not on an estate deed |                                       
+      197 +| `estate_family_transfers` | Estate deeds (executor's, fiduci
+          +ary, administrator's, trustee's, survivorship, transfer on dea
+          +th…) passing property for nothing: coded love and affection, o
+          +r a price of $10 or less |                                    
+      198 +| `*_share` | The count divided by `all_transfers` |          
+      199 +| `not_analyzed_transfers` | Sales the assessor never coded (c
+          +ode AA). These can't be coded love and affection, so family co
+          +unts are understated in years with many of them: 2012 (30% of 
+          +the year), 2018 and 2019. |                                   
+      200 +                                                              
+      201 +Only complete years are shown: years before the year of the sn
+          +apshot's download                                             
+      202 +date. 2026 is left out without hard-coding a year.            
+      203 +                                                              
+      204 +**A first reading:** the number of family transfers is roughly
+          + flat, around 6,500 to                                        
+      205 +7,200 a year, apart from 2021. Their share has risen since 201
+          +8 mostly because other                                        
+      206 +transfers fell after 2021. Estate transfers to family have nea
+          +rly doubled since 2020                                        
+      207 +(178 to 330) but remain about 1% of transfers. That is why cou
+          +nts sit next to shares                                        
+      208 +in the table: a share can rise because the denominator shrank.
+          + A per-parcel rate would                                      
+      209 +be a better measure, but it needs the assessments dataset, and
+          + the exercise allows only                                     
+      210 +one dataset.                                                  
+      211 +                                                              
+      212 +**How sales are classified.** Every sale gets exactly one `sal
+          +e_class` in                                                   
+      213 +`analytics.sales`, from rules in [`wprdc/sale_classes.py`](wpr
+          +dc/sale_classes.py):                                          
+      214 +an estate deed for nothing is `estate_family`; any other estat
+          +e deed, or code 37                                            
+      215 +"estate sale", is `estate_sale`; otherwise the class comes fro
+          +m the sale code                                               
+      216 +(`family`, `market`, `distressed` or `other`). The mapping is 
+          +maintained by hand and                                        
+      217 +reviewed in git, and `sale_code_unmapped` catches a new county
+          + code instead of letting                                      
+      218 +it be misclassified silently. The other classes aren't needed 
+          +for this question; they                                       
+      219 +are there so the fact table is useful for others.             
+      220 +                                                              
+      221 +## Three most important design decisions                      
+      222 +                                                              
+      223 +### 1. The raw layer is complete, immutable snapshots, backed 
+          +by an archive of every file                                   
+      224 +                                                              
+      225 +Every download is kept as delivered, and each distinct file be
+          +comes one complete                                            
+      226 +snapshot in `raw.property_sales`. Recreating the data as of an
+          +y day is a single                                             
+      227 +`WHERE snapshot_id = …`. A row hash on every row makes compari
+          +ng two snapshots cheap.                                       
+      228 +                                                              
+      229 +**Rejected:** a history table with one row per row version, op
+          +ened and closed by                                            
+      230 +snapshot (slowly changing dimension type 2). It stores far les
+          +s, but rebuilding the                                         
+      231 +data as of a given day becomes a more complex query and harder
+          + to trust. At this size                                       
+      232 +(about 507,000 rows, 105 MB per snapshot), full snapshots are 
+          +affordable, and old ones                                      
+      233 +can be pruned because the CSV archive can rebuild them. At 100
+          +x scale I'd revisit                                           
+      234 +this (below).                                                 
+      235 +                                                              
+      236 +### 2. Every HTTP request is logged and classified, as part of
+          + the pipeline, not as a debugging aid                         
+      237 +                                                              
+      238 +Before starting, I had seen intermittent failures from WPRDC w
+          +ith the `ckanapi`                                             
+      239 +library: blank responses, then HTML where JSON was expected. S
+          +o I replaced it with a                                        
+      240 +small `requests` client that logs every attempt to `ops.fetch_
+          +attempt`: timing, HTTP                                        
+      241 +status, headers, a snippet of the body, and a classification o
+          +f the response by its                                         
+      242 +content rather than its status code (a 200 response with an HT
+          +ML page is a failure).                                        
+      243 +Retries happen, but they are recorded, not hidden. This is how
+          + I found that WPRDC's                                         
+      244 +502 errors come from its own server rather than the CDN (below
+          +).                                                            
+      245 +                                                              
+      246 +**Rejected:** `ckanapi` with retry logic around it. It would h
+          +ave worked most of the                                        
+      247 +time, but failures would have been invisible, and I would have
+          + no evidence to bring                                         
+      248 +to WPRDC about how reliable the API is.                       
+      249 +                                                              
+      250 +### 3. Data quality: flag by default, quarantine only the impo
+          +ssible, fail the run only on structural problems              
+      251 +                                                              
+      252 +Doubtful records stay in the clean table, flagged, and go on t
+          +he data steward's list.                                       
+      253 +Only records that can't be true (a record date in the year 212
+          + or after the download                                        
+      254 +date, for example) are held out. A run fails only when the pip
+          +eline can't sensibly                                          
+      255 +carry on, such as a changed header.                           
+      256 +                                                              
+      257 +**Rejected:** failing the run whenever a check finds bad data,
+          + including when the                                           
+      258 +record key is not unique. The key (`PARID`, `DEEDBOOK`, `DEEDP
+          +AGE`, `SALEDATE`) is my                                       
+      259 +inference from the data, not something the county guarantees. 
+          +If it turned out wrong,                                       
+      260 +a strict pipeline would stop delivering data entirely. Instead
+          +, a collision flags the                                       
+      261 +records and alerts the engineer immediately. **Also rejected:*
+          +* quarantining every                                          
+      262 +doubtful record. "Recorded before the sale" looks impossible, 
+          +but corrective deeds,                                         
+      263 +and the county's own `RECORD YR <> SALE YR` sale code, make so
+          +me of those legitimate.                                       
+      264 +                                                              
+      265 +## What surprised me in the data                              
+      266 +                                                              
+      267 +- **The download file mixes line endings.** The header ends in
+          + CRLF and the data rows                                       
+      268 +  in LF. DuckDB's strict CSV reader rejects the file, so it is
+          + loaded in relaxed mode,                                      
+      269 +  with a separate structural check that every row has the head
+          +er's width.                                                   
+      270 +- **`_id` is regenerated on every refresh.** The values start 
+          +near 17 million and                                           
+      271 +  change each time, so they can't be used as a key.           
+      272 +- **WPRDC changes very little each refresh.** About 500 row ve
+          +rsions are added and                                          
+      273 +  200–240 removed a day, out of about 507,000. The other rows 
+          +hash identically even                                         
+      274 +  though their `_id` values changed.                          
+      275 +- **The obvious natural key is only unique by accident.** For 
+          +the 2,821 records with no                                     
+      276 +  real deed reference (mostly mobile home sales), placeholder 
+          +deed numbers are spelled                                      
+      277 +  `0`, `00`, `000`, and those spellings are all that separates
+          + otherwise identical                                          
+      278 +  records. That became the `possible_duplicate` check.        
+      279 +- **Impossible dates:** a record date of `0212-08-01` (presuma
+          +bly 2012), record dates                                       
+      280 +  before the data's 2012 start, and a record date in the futur
+          +e.                                                            
+      281 +- **1,248 records have no record date.** Most are mobile home 
+          +sales, certificates of                                        
+      282 +  transfer and lease memoranda, which may never be recorded. S
+          +o "missing" may mean "not                                     
+      283 +  applicable". I quarantined them for now, but I'd want the da
+          +ta steward's view; making                                     
+      284 +  it a flag is a one-word change.                             
+      285 +- **Most transfers are not market sales.** Of about 506,000 sa
+          +les, 98,813 carry the                                         
+      286 +  assessor's "valid sale" codes. Over half are coded as multi-
+          +parcel sales, quit claims,                                    
+      287 +  invalid for time on market, corrective deeds and similar.   
+      288 +- **Sale code 37, "estate sale", is applied unevenly:** 0 uses
+          + in 2012, 451 in 2015, 33                                     
+      289 +  in 2022. That is why it never feeds the family counts.      
+      290 +- **WPRDC's 502 errors come from its own nginx server, not the
+          + CDN.** They return in                                        
+      291 +  about 80 ms with nginx's error page, meaning the CKAN applic
+          +ation behind it refused                                       
+      292 +  the connection.                                             
+      293 +                                                              
+      294 +## At 100x scale, or with daily refreshes                     
+      295 +                                                              
+      296 +About 50 million rows and 10 GB per download, every day:      
+      297 +                                                              
+      298 +- **Raw storage.** Full daily snapshots would be about 3.6 TB 
+          +a year. I'd switch the                                        
+      299 +  raw layer to the row-version history I rejected above (decis
+          +ion 1), or to columnar                                        
+      300 +  snapshots (Parquet) with a short retention period. The row h
+          +ash is already                                                
+      301 +  computed, so the load becomes "insert the rows whose hash is
+          + new, close the rows whose                                    
+      302 +  hash disappeared".                                          
+      303 +- **Downloads.** A full download is still the only way to see 
+          +deletions in this                                             
+      304 +  source. I'd ask WPRDC whether it can publish a change feed o
+          +r a modified timestamp,                                       
+      305 +  and use the CKAN datastore API (already supported: `--strate
+          +gy datastore`) to fetch                                       
+      306 +  only the changes.                                           
+      307 +- **Transforms.** Rebuilding clean and analytics in full each 
+          +run would become an                                           
+      308 +  incremental merge on the record key, touching only changed r
+          +ows. Most checks are                                          
+      309 +  per-row and could also run only on changed rows. The grouped
+          + checks (duplicates,                                          
+      310 +  key uniqueness, parcel location) would need the affected key
+          +s.                                                            
+      311 +- **Engine.** DuckDB on one machine handles 50 million rows co
+          +mfortably, but a single                                       
+      312 +  database file allows one writer. With several pipelines or c
+          +oncurrent users, I'd move                                     
+      313 +  to Parquet files queried by DuckDB, or to a warehouse.      
+      314 +- **Daily operation.** Schedule it with an orchestrator for re
+          +tries and history, and                                        
+      315 +  actually send the alert emails. Add a freshness alert for wh
+          +en `last_modified` stops                                      
+      316 +  changing. Retune the alert thresholds: with about 500 change
+          +s a day, rate jumps are                                       
+      317 +  noisy.                                                      
+      318 +                                                              
+      319 +## What I didn't do, and why                                  
+      320 +                                                              
+      321 +- **Send alert emails.** Alerts are recorded in `dq.alert` and
+          + printed where the email                                      
+      322 +  would be sent. Configuring email didn't seem worth it for a 
+          +take-home.                                                    
+      323 +- **Scheduling.** The pipeline is one command that's safe to r
+          +e-run, so cron or Task                                        
+      324 +  Scheduler is enough to run it daily.                        
+      325 +- **Other datasets.** Not allowed by the exercise. A per-parce
+          +l rate would need the                                         
+      326 +  assessments dataset; I rejected estimating parcel counts fro
+          +m the sales data, because                                     
+      327 +  it misses exactly the long-held homes the question is about.
+      328 +- **Charts, or a by-municipality breakdown.** The deliverable 
+          +is one table. The star                                        
+      329 +  schema makes a by-municipality breakdown a short query.     
+      330 +- **Backfill checks over old snapshots.** Only the latest snap
+          +shot is evaluated. A new                                      
+      331 +  or changed check starts its history from the next run.      
+      332 +- **Track who fixed a record.** The source data doesn't say. T
+          +he pipeline records only                                      
+      333 +  that, when and how an issue was resolved.                   
+      334 +- **A steward interface.** The steward browses `dq.v_open_issu
+          +es` in the DuckDB UI.                                         
+      335 +- **Decide on missing record dates.** Quarantined for now, pen
+          +ding the steward (above).                                     
+      336 +- **Packaging, CI or containers.** The setup is a virtual envi
+          +ronment and                                                   
+      337 +  `requirements.txt` with exact versions, which seemed in keep
+          +ing with "small".                                             
+      338 +- **Three edge cases** found in the final code review. None of
+          + them occurs in the                                           
+      339 +  current data: a null description could win "most frequent" f
+          +or a code; a parcel's                                         
+      340 +  location can come from its latest sale even when that locati
+          +on is null; no test                                           
+      341 +  covers a failed analytics run being recorded as failed.     
+      342 +                                                              
+      343 +## AI usage                                                   
+      344 +                                                              
+      345 +I used Claude.ai for early exploration of the datasets and the
+          + CKAN API, and Claude                                         
+      346 +Code (Claude Opus 5.5) to write nearly all of the code, SQL an
+          +d tests and to run them.                                      
+      347 +I set the direction and made the design decisions, and I'm pre
+          +pared to walk through and                                     
+      348 +defend any part of the code. [`docs/AI_USAGE.md`](docs/AI_USAG
+          +E.md) lists which                                             
+      349 +decisions were mine, where I questioned or corrected the AI, a
+          +nd the AI's mistakes                                          
+      350 +caught along the way. It links the full session transcripts in
+      351 +[`docs/ai-sessions/`](docs/ai-sessions/). The design specs and
+          + implementation plans                                         
+      352 +for the data quality and analytics layers are in [`docs/superp
+          +owers/`](docs/superpowers/).                                  
+
+● Let me verify a few claims in the draft against the code.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Important catch: the row-count comparison with CKAN only prints a warning; it
+  doesn't fail the run. Let me look closer.
+
+  Read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● I caught a couple of inaccuracies: the row-width check actually runs after the
+  file's archived, and a CKAN row-count mismatch only triggers a warning, not a
+  failure—what really fails the run is load_raw's comparison of DuckDB-loaded
+  rows against the CSV count. I'll fix these along with an overstated datastore
+  claim.
+
+● Update(README.md)
+  ⎿  Added 5 lines, removed 3 lines
+      84  
+      85  **Ingest** asks CKAN for the resource's metadata and skips the 
+          download if
+      86  `last_modified` matches the last successful fetch. Otherwise it
+           downloads the full CSV
+      87 -dump into a run-stamped path, checks that every row has as many
+         - fields as the header                                          
+      88 -and that the row count matches CKAN's total, and only then rena
+         -mes the file into place.                                       
+      87 +dump to a temporary name, renames it into a run-stamped path on
+         +ce complete, and checks                                        
+      88 +that every row has as many fields as the header. It also compar
+         +es the row count with                                          
+      89 +CKAN's reported total and prints a warning if they differ.     
+      90  
+      91  **load_raw** checks the header against the expected columns (an
+           added, missing or
+      92  reordered column fails the run) and loads each new file as one 
+          snapshot, in one
+      92 -transaction. The snapshot ID is the file's SHA-256.            
+      93 +transaction. If DuckDB loads a different number of rows than in
+         +gest counted in the                                            
+      94 +file, the load fails and is rolled back. The snapshot ID is the
+         + file's SHA-256.                                               
+      95  
+      96  **transform** types the latest snapshot, evaluates the checks, 
+          and rebuilds the clean
+      97  table. **analytics** rebuilds the star schema from the clean ta
+          ble and prints the
+
+● Update(README.md)
+  ⎿  Added 4 lines, removed 3 lines
+      150    in its `dq_flags`. For example, a corrective deed can be rec
+           orded before its sale
+      151    date.
+      152  - **Fail the run:** reserved for structural problems, where ca
+           rrying on would be
+      153 -  wrong: a changed header, a row with the wrong number of fiel
+          -ds, a downloaded row                                          
+      154 -  count that doesn't match CKAN's total, or a table that can't
+          - be built. The run is                                         
+      155 -  marked failed and the previous tables stay.                 
+      153 +  wrong: a changed header, a row with the wrong number of fiel
+          +ds, DuckDB loading a                                          
+      154 +  different number of rows than the file contains, or a table 
+          +that can't be built. The                                      
+      155 +  run is marked failed and the previous tables stay. (A row co
+          +unt that differs from                                         
+      156 +  CKAN's reported total only prints a warning for now; see bel
+          +ow.)                                                          
+      157  
+      158  The checks serve two people:
+      159  
+
+● Update(README.md)
+  ⎿  Added 3 lines, removed 3 lines
+      303    computed, so the load becomes "insert the rows whose hash is
+            new, close the rows whose
+      304    hash disappeared".
+      305  - **Downloads.** A full download is still the only way to see 
+           deletions in this
+      306 -  source. I'd ask WPRDC whether it can publish a change feed o
+          -r a modified timestamp,                                       
+      307 -  and use the CKAN datastore API (already supported: `--strate
+          -gy datastore`) to fetch                                       
+      308 -  only the changes.                                           
+      306 +  source. I'd ask WPRDC whether it can publish a change feed o
+          +r a modified timestamp                                        
+      307 +  per row. With one, the CKAN datastore API could fetch only t
+          +he changed rows (the                                          
+      308 +  pipeline can already page through it: `--strategy datastore`
+          +).                                                            
+      309  - **Transforms.** Rebuilding clean and analytics in full each 
+           run would become an
+      310    incremental merge on the record key, touching only changed r
+           ows. Most checks are
+      311    per-row and could also run only on changed rows. The grouped
+            checks (duplicates,
+
+● Update(README.md)
+  ⎿  Added 3 lines
+      335    that, when and how an issue was resolved.
+      336  - **A steward interface.** The steward browses `dq.v_open_issu
+           es` in the DuckDB UI.
+      337  - **Decide on missing record dates.** Quarantined for now, pen
+           ding the steward (above).
+      338 +- **Fail on a row count that differs from CKAN's total.** Inge
+          +st only warns. CKAN's                                         
+      339 +  total comes from the datastore, which is updated separately 
+          +from the download file,                                       
+      340 +  so I'd want to see how often they legitimately disagree befo
+          +re making it fatal.                                           
+      341  - **Packaging, CI or containers.** The setup is a virtual envi
+           ronment and
+      342    `requirements.txt` with exact versions, which seemed in keep
+           ing with "small".
+      343  - **Three edge cases** found in the final code review. None of
+            them occurs in the
+● Correction to my own edit: the dump is produced from the same CKAN datastore,
+  so "updated separately" isn't a supported reason. I'll state the gap plainly
+  instead of inventing a rationale.
+
+● Update(README.md)
+  ⎿  Added 2 lines, removed 3 lines
+      335    that, when and how an issue was resolved.
+      336  - **A steward interface.** The steward browses `dq.v_open_issu
+           es` in the DuckDB UI.
+      337  - **Decide on missing record dates.** Quarantined for now, pen
+           ding the steward (above).
+      338 -- **Fail on a row count that differs from CKAN's total.** Inge
+          -st only warns. CKAN's                                         
+      339 -  total comes from the datastore, which is updated separately 
+          -from the download file,                                       
+      340 -  so I'd want to see how often they legitimately disagree befo
+          -re making it fatal.                                           
+      338 +- **Fail on a row count that differs from CKAN's total.** Inge
+          +st only warns. The                                            
+      339 +  counts have matched on every download so far, and this shoul
+          +d become a run failure.                                       
+      340  - **Packaging, CI or containers.** The setup is a virtual envi
+           ronment and
+      341    `requirements.txt` with exact versions, which seemed in keep
+           ing with "small".
+      342  - **Three edge cases** found in the final code review. None of
+            them occurs in the
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Written for: the Allegheny County hiring reviewers reading the repo.
+
+  The README is drafted in README.md and isn't committed yet. It covers all the
+  sections the exercise asks for. I checked the numbers in it against the
+  current database and code: the output table, check counts, snapshot changes
+  and request outcomes all come from live queries, and all 109 tests pass.
+
+  Something I found while checking that you should decide on: the data quality
+  design doc says a downloaded row count that doesn't match CKAN's total fails
+  the run. The code (wprdc/ingest.py:144 (wprdc/ingest.py#L144)) only prints a
+  warning. I wrote the README to describe what the code actually does, and
+  listed this under "What I didn't do." The counts have matched on every
+  download so far. You have two options:
+  - leave it documented as a known gap, or
+  - I make it fail the run. That's a small change plus a test, and it lets you
+    drop that line from the README.
+
+  Please review these, since they read as your judgment:
+  - Three design decisions. I picked: complete snapshots over a history table;
+    logging every request instead of using ckanapi; and "flag by default, fail
+    only on structural problems." Swap any of these if you'd lead with something
+    else.
+  - "A first reading" of the results. It says family transfer counts are roughly
+    flat, and the share rises mainly because total transfers fell after 2021.
+    That interpretation is mine; tone it down or cut it if you'd rather keep the
+    analysis minimal.
+  - "What surprised me." That section has nine items, which may be more than you
+    want. "Most transfers are not market sales" is new: I noticed it while
+    drafting, and you hadn't flagged it.
+  - Voice. It's written in first person as you, so rewrite anything that doesn't
+    sound like you.
+
+  Related loose end: the session log table in docs/AI_USAGE.md stops at Oct 28.
+  The three Oct 30 sessions are missing from it, even though their transcripts
+  are in docs/ai-sessions/. Its Claude.ai row also still has 2026-10-?? and a
+  placeholder link.
+
+  Want me to update AI_USAGE.md and make the row-count check fail the run, then
+  commit everything once you've reviewed the README?
+
+> Just update the AI_USAGE.md file now.  Do not make the row-count check fail
+  the run, I want to leave that as a "known" gap between what was specified to
+  be done and what was actually done, so that someone can see what it takes to
+  fix that.  In other words, how easy is it to maintain this code that was
+  written by an AI assistant and someone else?  Also, why did that issue not
+  get detected until now?  So, just update the AI_USAGE.md document, and then I
+  am going to edit the README.md file.
+
+● I'll start by reading what's in the Oct 30 transcripts, and tracing where the
+  row-count claim came from.
+
+  Searched for 1 pattern, ran 2 shell commands (ctrl+o to expand)
+
+● The claim goes back to Oct 26. Let me check whether the code ever enforced it.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● It was a warning from the very first commit. Now the Oct 30 sessions. I'll
+  pull out your prompts to capture the decisions and corrections.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● A few prompts got clipped by my filter. Let me read those exchanges in full.
+
+  Ran 4 shell commands (ctrl+o to expand)
+
+● That column comment in the transcript describes family as "for nothing between
+  people with the same surname", but the data has no names. Let me check
+  whether the committed code still says that.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Claude caught that one itself before committing. I have everything I need now,
+  so I'll update the file.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(docs\AI_USAGE.md)
+  ⎿  Added 4 lines
+      30  | 2026-10-?? | Claude.ai | Dataset exploration; first logging-s
+          chema idea | _link to shared conversation_ |
+      31  | 2026-10-26 | Claude Code #1 | Fetch logging, raw landing, raw
+           snapshots, DuckDB version pin, row hashes | [`ai-sessions/2026
+          -10-26-ingest-and-raw-layer.txt`](ai-sessions/2026-10-26-ingest
+          -and-raw-layer.txt) |
+      32  | 2026-10-28 | Claude Code #2 | Status review; second snapshot 
+          (+507 / −206 row versions, unchanged rows not rewritten); why a
+           run makes 3 requests; re-run check; DuckDB UI for browsing; na
+          tural key investigation; data quality design (quarantine vs. fl
+          ag, steward's issue list, rate-jump alerts, key collisions don'
+          t fail runs), plan, implementation and review fixes | [`ai-sess
+          ions/2026-10-28-220407-where-are-we-on-this-project.txt`](ai-se
+          ssions/2026-10-28-220407-where-are-we-on-this-project.txt) |
+      33 +| 2026-10-30 | Claude Code #3 | Third snapshot; typed table mov
+         +ed from `clean` to a new `staging` schema; choosing the analyti
+         +cal question; naming the layer `analytics` and the fact table `
+         +sales` | [`ai-sessions/2026-10-30-130735-lets-do-another-pipeli
+         +ne-run.txt`](ai-sessions/2026-10-30-130735-lets-do-another-pipe
+         +line-run.txt) |                                                
+      34 +| 2026-10-30 | Claude Code #4 | Analytics layer design (estate 
+         +deeds, denominator, parcel-count estimate rejected, table not c
+         +hart, output as a view), plan, implementation, final review and
+         + fix; `python -m wprdc.pipeline`; push to GitHub | [`ai-session
+         +s/2026-10-30-153811-lets-pick-up-where-left-off.txt`](ai-sessio
+         +ns/2026-10-30-153811-lets-pick-up-where-left-off.txt) |        
+      35 +| 2026-10-30 | Claude Code #5 | What `not_analyzed_transfers` m
+         +eans and how to explain it to others: column comments in DuckDB
+         + and a footnote under the printed table | [`ai-sessions/2026-10
+         +-30-205055-what-is-this-notanalyzed-column-in-the-analyti.txt`]
+         +(ai-sessions/2026-10-30-205055-what-is-this-notanalyzed-column-
+         +in-the-analyti.txt) |                                          
+      36 +| 2026-10-31 | Claude Code #6 | Time spent; remaining requireme
+         +nts; README draft, checked against the code and database; found
+         + the row-count gap (below) | _transcript to be added_ |        
+      37  
+      38  ## Decisions I made
+      39  
+
+● Update(docs\AI_USAGE.md)
+  ⎿  Added 31 lines
+       82  - **Kept the row hash** after asking whether it was needed. It
+            is not required for
+       83    correctness, but it makes snapshot comparison cheap and is t
+           he natural answer
+       84    at 100x scale.
+       85 +- **Moved the typed table out of `clean`.** It holds every row
+          +, including the ones                                          
+       86 +  the checks quarantine, so it belongs in an intermediate `sta
+          +ging` schema, not next                                        
+       87 +  to the table meant for analysis.                            
+       88 +- **The question.** I first suggested property values over tim
+          +e and by area, then                                           
+       89 +  chose family transfers instead, with the hypothesis that the
+          +y rise as the                                                 
+       90 +  population ages.                                            
+       91 +- **Naming:** `analytics` for the layer (Claude suggested it o
+          +ver `gold`, which this                                        
+       92 +  repo's other names don't follow), and `sales` for the fact t
+          +able. Claude had                                              
+       93 +  proposed `transfer`, since most records aren't sales in the 
+          +everyday sense; I                                             
+       94 +  chose `sales` because the source calls every record a sale, 
+          +so the vocabulary stays                                       
+       95 +  the same from source to output.                             
+       96 +- **A star schema, with the "one output table" as a view.** I 
+          +read "one output table"                                       
+       97 +  as the result of a query, not another physical table, so the
+          + star schema supports                                         
+       98 +  the question and the view answers it.                       
+       99 +- **Estate transfers are their own class, and win over family*
+          +* when a sale is both.                                        
+      100 +  After profiling showed most estate deeds sell at market pric
+          +es, I chose to split                                          
+      101 +  them into estate transfers for nothing (`estate_family`) and
+          + estate sales at a                                            
+      102 +  price (`estate_sale`).                                      
+      103 +- **The denominator is all recorded transfers.** I had asked f
+          +or a rate per 1,000                                           
+      104 +  parcels, which needs the assessments dataset; the exercise a
+          +llows one dataset.                                            
+      105 +  When I asked whether parcels could be estimated from the sal
+          +es data, Claude showed                                        
+      106 +  that the sales data sees only about half the county's parcel
+          +s, and misses exactly                                         
+      107 +  the long-held homes the question is about.                  
+      108 +- **2026 left out**, as an incomplete year.                   
+      109 +- **A table, not a chart.** The exercise asks for a table, and
+          + this is a data                                               
+      110 +  engineering exercise, not an analytics one, so the analysis 
+          +stays small.                                                  
+      111 +- **Built the analytics plan in one session ("Native")** with 
+          +one independent review                                        
+      112 +  of the whole branch at the end, rather than a separate build
+          +er and reviewer per                                           
+      113 +  task, to save time before the deadline.                     
+      114 +- **Left the row-count gap in place** (see [Known gap](#known-
+          +gap-between-the-design-and-the-code)),                        
+      115 +  so a reviewer can see what it takes to fix.                 
+      116  
+      117  ## Where I questioned or corrected the AI
+      118  
+
+● Update(docs\AI_USAGE.md)
+  ⎿  Added 10 lines
+      144    flags the records and alerts me; only structural problems fa
+           il a run.
+      145  - **The checks serve the data steward, not me.** I corrected C
+           laude's assumption
+      146    that the flagged-record list was for the engineer.
+      147 +- **"What was the plan here?"** Seeing `clean.property_sales_t
+          +yped` next to                                                 
+      148 +  `clean.property_sales`, I asked what each was for. That led 
+          +to moving the typed                                           
+      149 +  table to `staging`, and to the analytics layer discussion.  
+      150 +- **"We are creating a data mart specific to this question, co
+          +rrect?"** The answer                                          
+      151 +  shaped the design: a general star schema for all property tr
+          +ansfers, with only a                                          
+      152 +  thin view specific to the question.                         
+      153 +- **"Someone else will have that question as well, so how will
+          + we communicate it?"**                                        
+      154 +  After asking what `not_analyzed_transfers` meant, I asked ho
+          +w a reader would find                                         
+      155 +  out. The explanation now travels with the data, as column co
+          +mments in DuckDB and a                                        
+      156 +  footnote under the printed table, as well as in the README. 
+      157  
+      158  ## AI mistakes caught during the work
+      159  
+
+● Update(docs\AI_USAGE.md)
+  ⎿  Added 52 lines
+      166    the output and redone.
+      167  - **A missing dependency.** DuckDB's Python client needs `pytz
+           ` to return timestamps
+      168    with time zones. It surfaced during an ad-hoc query and is n
+           ow pinned.
+      169 +- **An output that could change without a rebuild.** The final
+          + review of the                                                
+      170 +  analytics layer found that the output view read its year cut
+          +off from the clean                                            
+      171 +  table every time it was queried. If a new snapshot reached t
+          +he clean layer and the                                        
+      172 +  analytics step then failed, the view would mix new and old d
+          +ata. The mistake was                                          
+      173 +  in Claude's plan, not the build. The cutoff is now fixed whe
+          +n the analytics layer                                         
+      174 +  is built, and a test covers it.                             
+      175 +- **A wrong description of the data.** Claude's first draft of
+          + the column comments                                          
+      176 +  described a family transfer as one "between people with the 
+          +same surname". The                                            
+      177 +  data has no names, and no such rule exists. Claude caught it
+          + by checking the                                              
+      178 +  wording against `sale_classes.py`, before committing.       
+      179 +- **A check described as existing that never did.** See the ne
+          +xt section.                                                   
+      180  
+      181 +## Known gap between the design and the code                  
+      182 +                                                              
+      183 +The data quality design says a run fails when "the downloaded 
+          +row count doesn't                                             
+      184 +match CKAN's reported total (exists: ingest)". It doesn't. Sin
+          +ce the first commit,                                          
+      185 +[`wprdc/ingest.py`](../wprdc/ingest.py) has only printed a war
+          +ning when the counts                                          
+      186 +differ, and the file is still loaded. (A separate check does f
+          +ail the run: load_raw                                         
+      187 +fails if DuckDB loads a different number of rows than ingest c
+          +ounted in the file.)                                          
+      188 +                                                              
+      189 +I've left this unfixed on purpose. It shows what maintaining t
+          +his code is like:                                             
+      190 +someone other than its author has to find out what the code re
+          +ally does, rather                                             
+      191 +than what the documents say it does, and then change it safely
+          +.                                                             
+      192 +                                                              
+      193 +**Why it went unnoticed until Oct 31:**                       
+      194 +                                                              
+      195 +1. **The first summary overstated the code.** At the end of th
+          +e Oct 26 session,                                             
+      196 +   Claude described the check as enforced: "the row count must
+          + equal CKAN's total                                           
+      197 +   (506,425 of 506,425). Only after that passes does lax parsi
+          +ng happen." The code it                                       
+      198 +   had just written only printed a warning.                   
+      199 +2. **The design relied on that summary.** On Oct 28, Claude to
+          +ld me "Ingest already                                         
+      200 +   validates the file", without re-reading the code, and the s
+          +pec recorded it as                                            
+      201 +   "(exists: ingest)".                                        
+      202 +3. **So nothing tested it.** Because the spec said the check e
+          +xisted, the                                                   
+      203 +   implementation plan had no task for it and no test was writ
+          +ten. The reviews                                              
+      204 +   compared new code against the plan, so a claim about older 
+          +code was outside what                                         
+      205 +   any review looked at.                                      
+      206 +4. **The data never triggered it.** CKAN's total matched the d
+          +ownloaded row count on                                        
+      207 +   all four successful downloads, so the warning never printed
+          + and no run behaved                                           
+      208 +   unexpectedly.                                              
+      209 +5. **It was found by checking the README against the code.** W
+          +hile drafting the                                             
+      210 +   README on Oct 31, Claude checked each claim against the cod
+          +e before writing it,                                          
+      211 +   and this one didn't hold.                                  
+      212 +                                                              
+      213 +**What fixing it involves:** in `ingest.py`, raise an error in
+          +stead of printing the                                         
+      214 +warning, recording the fetch as failed with the downloaded fil
+          +e's details (the                                              
+      215 +way other ingest failures are recorded), so the file is kept b
+          +ut not loaded.                                                
+      216 +Then add a test that fakes a CKAN total different from the fil
+          +e's row count, and                                            
+      217 +update the README, which currently lists this under "what I di
+          +dn't do".                                                     
+      218 +                                                              
+      219 +**The lesson:** a design document's claims about existing beha
+          +vior should point to                                          
+      220 +the code or a test that shows it. "(exists: ingest)" pointed t
+          +o nothing.                                                    
+      221 +                                                              
+      222  ## Findings from the investigation
+      223  
+      224  These came out of running the pipeline and querying the result
+           s. They will feed the
+
+  Read 1 file (ctrl+o to expand)
+
+● Last, I'll bring the findings and verification sections up to date:
+
+● Update(docs\AI_USAGE.md)
+  ⎿  Added 2 lines, removed 2 lines
+      221  
+      222  ## Findings from the investigation
+      223  
+      224 -These came out of running the pipeline and querying the result
+          -s. They will feed the                                         
+      225 -README's "what surprised me" section and the data quality chec
+          -ks.                                                           
+      224 +These came out of running the pipeline and querying the result
+          +s. They fed the data                                          
+      225 +quality checks and the README's "what surprised me" section, w
+          +hich has the full list.                                       
+      226  
+      227  - **WPRDC's 502 errors come from its own nginx server, not the
+            CDN.** They return in
+      228    about 80 ms with nginx's error page, which means the CKAN ap
+           plication behind it
+
+● Update(docs\AI_USAGE.md)
+  ⎿  Added 17 lines, removed 7 lines
+      236  - **WPRDC's refresh leaves unchanged rows alone.** Between the
+            Oct 26 and Oct 28
+      237    snapshots (506,425 → 506,726 rows), only 507 row versions we
+           re added and 206
+      238    removed. The other ~506,000 rows hash identically despite th
+           e new `_id` values,
+      239 -  so comparing snapshots by row hash finds only the rows that 
+          -really changed.                                               
+      239 +  so comparing snapshots by row hash finds only the rows that 
+          +really changed. The                                           
+      240 +  Oct 30 refresh was similar: 503 added, 238 removed.         
+      241  
+      242  ## How the AI's work was verified
+      243  
+      243 -- Automated tests (`python -m pytest`) cover response classifi
+          -cation, retries, raw                                          
+      244 -  loading, re-runs, schema drift, rollback, pruning and rebuil
+          -ding. The tests include                                       
+      245 -  a replay of the real blank → HTML → JSON failure sequence.  
+      246 -- Each stage was run against the live API and real data, with 
+          -the results checked by                                        
+      247 -  queries. For example: the row count matched CKAN's total of 
+          -506,425, re-runs skipped                                      
+      248 -  as expected, and the raw layer was rebuilt from the CSV arch
+          -ive.                                                          
+      244 +- **Automated tests:** 109, all passing (`python -m pytest`). 
+          +They cover response                                           
+      245 +  classification, retries, raw loading, re-runs, schema drift,
+          + rollback, pruning and                                        
+      246 +  rebuilding (including a replay of the real blank → HTML → JS
+          +ON failure sequence);                                         
+      247 +  each data quality check, issue resolution and alerts; and th
+          +e sale                                                        
+      248 +  classification, the dimensions, the output view and identica
+          +l rebuilds.                                                   
+      249 +- **Real data:** each stage was run against the live API and r
+          +eal data, with the                                            
+      250 +  results checked by queries. For example: the row count match
+          +ed CKAN's total of                                            
+      251 +  506,425, re-runs skipped as expected, and the raw layer was 
+          +rebuilt from the CSV                                          
+      252 +  archive.                                                    
+      253 +- **Independent review:** the data quality and analytics work 
+          +each ended with a                                             
+      254 +  review of the whole branch by a separate Claude agent that h
+          +adn't written the                                             
+      255 +  code. Its findings were fixed before merging.               
+      256 +- **The limit:** tests and reviews were written from the desig
+          +n documents, so they                                          
+      257 +  check what the documents ask for. A wrong statement in a doc
+          +ument about code that                                         
+      258 +  already existed was outside what they could catch (see the k
+          +nown gap above).                                              
+
+● I'll confirm the Oct 28 review really was done by a separate agent before
+  leaving that claim in:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Confirmed: both sessions used a separate review agent. One wording fix: on Oct
+  30 not every finding was fixed, since the minor ones were deferred.
+
+● Update(docs\AI_USAGE.md)
+  ⎿  Added 2 lines, removed 1 line
+      252    archive.
+      253  - **Independent review:** the data quality and analytics work 
+           each ended with a
+      254    review of the whole branch by a separate Claude agent that h
+           adn't written the
+      255 -  code. Its findings were fixed before merging.               
+      255 +  code. Its important findings were fixed before merging. Thre
+          +e minor ones that                                             
+      256 +  can't occur in the current data are listed in the README und
+          +er "what I didn't do".                                        
+      257  - **The limit:** tests and reviews were written from the desig
+           n documents, so they
+      258    check what the documents ask for. A wrong statement in a doc
+           ument about code that
+      259    already existed was outside what they could catch (see the k
+           nown gap above).
+
+● I've updated docs/AI_USAGE.md. Nothing is committed, and I didn't touch the
+  README or the code.
+
+  Changes to AI_USAGE.md:
+  - Session log: added the three Oct 30 sessions with links to their
+    transcripts, plus today's session.
+  - Decisions you made: added the Oct 30 decisions, including moving the typed
+    table to staging, the question, naming the layer and fact table, estate
+    transfers as their own class, and the denominator. It also records that you
+    left the row-count gap in place on purpose.
+  - Where you questioned the AI: added three Oct 30 moments. One is "how will we
+    communicate it?" about the not_analyzed column.
+  - AI mistakes caught: added two:
+    - The output view could change without a rebuild. The final review caught
+      it; the mistake was in Claude's plan.
+    - A column comment described a "same surname" rule that doesn't exist.
+      Claude caught that itself before committing.
+  - New "Known gap between the design and the code" section: what the spec says,
+    what the code does, why it went unnoticed, and what fixing it involves.
+  - Verification section: now says 109 tests, notes the separate review agent at
+    the end of the data quality and analytics work, and adds a "limit" note.
+
+  Why the gap wasn't found until now:
+  1. The code has only printed a warning since the first commit on Oct 26. But
+     Claude's end-of-session summary that day described it as an enforced check.
+  2. On Oct 28, Claude repeated that from memory ("Ingest already validates the
+     file") without re-reading the code. The spec then recorded it as "(exists:
+     ingest)".
+  3. Because the spec said the check already existed, the plan had no task for
+     it and no test was written. The reviews compared new code against the plan,
+     so they never looked at it.
+  4. CKAN's total matched the downloaded row count on all four successful
+     downloads, so the warning never printed.
+  5. It surfaced today only because I checked each README claim against the code
+     before writing it.
+
+  That's also a fair answer to your maintainability question. Tests and reviews
+  generated from the design docs were consistent with the docs, but they
+  couldn't catch the docs being wrong about older code. The fix itself is small:
+  change the warning to a failure that's recorded the way other ingest failures
+  are, and add one test. The real work for the next maintainer is noticing the
+  gap in the first place.
+
+  Two placeholders are still in the session log for you to fill:
+  - the Claude.ai row (date unknown, no link yet)
+  - today's transcript ("transcript to be added"), until you export this session
+
+> <browser_instruction># Claude in Chrome browser automation
+
+  You have access to browser automation tools (mcp__claude-in-chrome__*) for
+  interacting with web pages in Chrome. Follow these guidelines for effective
+  browser automation.
+
+  ## Loading deferred tools
+
+  If the mcp__claude-in-chrome__* tools are deferred (must be loaded via
+  ToolSearch before use), load every tool you expect to need in ONE ToolSearch
+  call — the select query accepts a comma-separated list — never one call per
+  tool. Start with the core set:
+
+  ToolSearch with query
+  "select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__naviga
+  te,mcp__claude-in-chrome__computer,mcp__claude-in-chrome__read_page,mcp__clau
+  de-in-chrome__tabs_create_mcp,mcp__claude-in-chrome__tabs_close_mcp"
+
+  Add task-specific tools to the same call when the task obviously needs them:
+  read_console_messages / read_network_requests for debugging, form_input for
+  forms, gif_creator for recordings, javascript_tool for page scripting.
+
+  ## GIF recording
+
+  When performing multi-step browser interactions that the user may want to
+  review or share, use mcp__claude-in-chrome__gif_creator to record them.
+
+  You must ALWAYS:
+  * Capture extra frames before and after taking actions to ensure smooth
+  playback
+  * Name the file meaningfully to help the user identify it later (e.g.,
+  "login_process.gif")
+
+  ## Console log debugging
+
+  You can use mcp__claude-in-chrome__read_console_messages to read console
+  output. Console output may be verbose. If you are looking for specific log
+  entries, use the 'pattern' parameter with a regex-compatible pattern. This
+  filters results efficiently and avoids overwhelming output. For example, use
+  pattern: "[MyApp]" to filter for application-specific logs rather than
+  reading all console output.
+
+  ## Alerts and dialogs
+
+  IMPORTANT: Do not trigger JavaScript alerts, confirms, prompts, or browser
+  modal dialogs through your actions. These browser dialogs block all further
+  browser events and will prevent the extension from receiving any subsequent
+  commands. Instead, when possible, use console.log for debugging and then use
+  the mcp__claude-in-chrome__read_console_messages tool to read those log
+  messages. If a page has dialog-triggering elements:
+  1. Avoid clicking buttons or links that may trigger alerts (e.g., "Delete"
+  buttons with confirmation dialogs)
+  2. If you must interact with such elements, warn the user first that this may
+  interrupt the session
+  3. Use mcp__claude-in-chrome__javascript_tool to check for and dismiss any
+  existing dialogs before proceeding
+
+  If you accidentally trigger a dialog and lose responsiveness, inform the user
+  they need to manually dismiss it in the browser.
+
+  ## Avoid rabbit holes and loops
+
+  When using browser automation tools, stay focused on the specific task. If
+  you encounter any of the following, stop and ask the user for guidance:
+  - Unexpected complexity or tangential browser exploration
+  - Browser tool calls failing or returning errors after 2-3 attempts
+  - No response from the browser extension
+  - Page elements not responding to clicks or input
+  - Pages not loading or timing out
+  - Unable to complete the browser task despite multiple approaches
+
+  Explain what you attempted, what went wrong, and ask how the user would like
+  to proceed. Do not keep retrying the same failing browser action or explore
+  unrelated pages without checking in first.
+
+  ## Tab context and session startup
+
+  IMPORTANT: At the start of each browser automation session, call
+  mcp__claude-in-chrome__tabs_context_mcp first to get information about the
+  user's current browser tabs. Use this context to understand what the user
+  might want to work with before creating new tabs.
+
+  Never reuse tab IDs from a previous/other session. Follow these guidelines:
+  1. Only reuse an existing tab if the user explicitly asks to work with it
+  2. Otherwise, create a new tab with mcp__claude-in-chrome__tabs_create_mcp
+  3. If a tool returns an error indicating the tab doesn't exist or is invalid,
+  call tabs_context_mcp to get fresh tab IDs
+  4. When a tab is closed by the user or a navigation error occurs, call
+  tabs_context_mcp to see what tabs are available</browser_instruction>
+
+> In the README, you state that we used the CKAN API to download the data.  Do
+  we really?  I thought we moved to a more informatative "requests"
+  architecture for this, given the issues we had early on getting data.
+● Let me check exactly what the code calls.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Both are true, and they don't conflict. They're two different layers:
+
+  - CKAN API is WPRDC's web service: the server side, which is what we talk to.
+  - ckanapi was the Python library we used to call it at first. We replaced that
+    library with our own client built on requests: wprdc/http_client.py, which
+    logs and classifies every request, and wprdc/ckan.py on top of it. That's
+    the "more informative" part. Every attempt lands in ops.fetch_attempt.
+
+  So we still call CKAN, just with our own code instead of ckanapi. To be
+  precise about what gets called (wprdc/ckan.py:15-40 (wprdc/ckan.py#L15-L40)):
+
+  ┌──────────────────┬────────────────────────────────┬────────────────────┐
+  │       Call       │            Endpoint            │      Purpose       │
+  ├──────────────────┼────────────────────────────────┼────────────────────┤
+  │                  │                                │ Metadata,          │
+  │ package_show     │ /api/3/action/package_show     │ including          │
+  │                  │ (CKAN action API)              │ last_modified for  │
+  │                  │                                │ skip-if-unchanged  │
+  ├──────────────────┼────────────────────────────────┼────────────────────┤
+  │ datastore_search │ /api/3/action/datastore_search │ CKAN's total row   │
+  │  (limit 0)       │  (CKAN action API)             │ count              │
+  ├──────────────────┼────────────────────────────────┼────────────────────┤
+  │ dump             │ /datastore/dump/{resource_id}  │ The CSV itself, in │
+  │                  │                                │  one request       │
+  └──────────────────┴────────────────────────────────┴────────────────────┘
+
+  The one nuance is that the data itself comes from CKAN's datastore dump URL,
+  not the action API. The exercise allows "CKAN API or resource URL", so either
+  description satisfies the requirement. The README's opening line ("downloads
+  the data through the CKAN API") is a little loose, though, and it doesn't
+  mention the requests client at all. That design decision is covered further
+  down, in decision 2. Since you're editing the README, here's a more precise
+  version of that sentence if you want it:
+
+  ▎ It reads the dataset's metadata through the CKAN API and downloads the full
+  ▎ CSV from CKAN's datastore dump, using a small requests-based client that
+  ▎ logs every request.
+
+> Can you expand on that to indicate why we did this?  I realize this may be
+  covered more later on, but I want to make sure it is stated early in this
+  document.  I feel like this was an important early finding, and is important
+  to flag to the reviewer.  If they wanted me to use ONLY the CKAN API library,
+  they will not be happy.  however I am happy with our design decision, and
+  want it noted up front.
+
+● Here's an expanded version for the top of the README. You're editing the file,
+  so I haven't touched it; paste this in place of the current opening sentence:
+
+  ▎ It reads the dataset's metadata through the CKAN API and downloads the full
+  ▎ CSV from CKAN's datastore dump. It does not use the ckanapi Python library.
+  ▎ Before starting, I saw intermittent failures from WPRDC through ckanapi:
+  ▎ blank responses, then HTML pages where JSON was expected. The library gave
+  ▎ no way to tell what had gone wrong or how often. So the pipeline calls the
+  ▎ same CKAN endpoints with a small client built on requests. That client logs
+  ▎ every request (timing, status, headers, a snippet of the body), judges each
+  ▎ response by its content rather than its HTTP status, and records every retry
+  ▎ rather than hiding it. This turned up the first finding about the source:
+  ▎ WPRDC's 502 errors come from its own server, not its CDN. The first full
+  ▎ download failed three times, each in about 80 ms, before succeeding. See
+  ▎ design decision 2 (#2-every-http-request-is-logged-and-classified-as-part-of
+  ▎ -the-pipeline-not-as-a-debugging-aid).
+
+  On your worry about the reviewers: the exercise says "Ingest the data
+  programmatically (CKAN API or resource URL)", meaning the API itself, not any
+  particular library. Calling the CKAN endpoints directly meets that
+  requirement. The paragraph above presents it as a deliberate choice with
+  evidence behind it, which reads better than looking like you missed the
+  library. You'll also get to explain it in the live walkthrough.
+
+  Two things to check when you paste it:
+  - The anchor link assumes decision 2's heading stays as it is. If you reword
+    that heading, the link will break.
+  - Overlap with decision 2. Decision 2 now repeats much of this. You could trim
+    it to the rejected alternative and a pointer back to the opening, or leave
+    it as the fuller version.

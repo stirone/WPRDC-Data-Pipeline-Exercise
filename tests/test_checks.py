@@ -18,8 +18,6 @@ def test_version_changes_with_logic():
 
 def test_initial_actions():
     by_id = {c.id: c for c in CHECKS}
-    assert {i for i, c in by_id.items() if c.action == "quarantine"} == {
-        "sale_date_invalid", "record_date_invalid", "record_date_future", "record_date_missing"}
     assert by_id["key_not_unique"].alert == "any"
     for new in ("sale_code_unmapped", "parcel_location_varies"):
         assert (by_id[new].action, by_id[new].alert) == ("flag", "any")

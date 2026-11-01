@@ -6,7 +6,8 @@ from wprdc.checks import CHECKS
 from wprdc.dq import evaluate
 from wprdc.transform import TYPED, build_typed
 
-MISSING = "record_date_missing"
+INVALID = "record_date_invalid"
+BAD_DATE = "0212-08-01"   # fails record_date_invalid, a quarantine check
 
 
 def at(minutes):
@@ -29,15 +30,15 @@ def issues(con, check_id):
 
 
 def test_issue_persists_across_snapshots(con):
-    snap(con, "s1", [sale(RECORDDATE=None)], 0)
-    snap(con, "s2", [sale(RECORDDATE=None), sale(DEEDPAGE="2")], 1)
-    assert issues(con, MISSING) == [("open", None, at(0), at(1), None, "quarantine", None)]
+    snap(con, "s1", [sale(RECORDDATE=BAD_DATE)], 0)
+    snap(con, "s2", [sale(RECORDDATE=BAD_DATE), sale(DEEDPAGE="2")], 1)
+    assert issues(con, INVALID) == [("open", None, at(0), at(1), None, "quarantine", None)]
 
 
 def test_fixed(con):
-    snap(con, "s1", [sale(RECORDDATE=None)], 0)
+    snap(con, "s1", [sale(RECORDDATE=BAD_DATE)], 0)
     snap(con, "s2", [sale()], 1)
-    assert issues(con, MISSING) == [("resolved", "fixed", at(0), at(0), at(1), "quarantine", None)]
+    assert issues(con, INVALID) == [("resolved", "fixed", at(0), at(0), at(1), "quarantine", None)]
 
 
 def test_replaced_links_successor(con):
@@ -56,53 +57,53 @@ def test_replaced_with_two_successors_names_none(con):
 
 
 def test_removed_and_no_deed_never_replaced(con):
-    snap(con, "s1", [sale(DEEDBOOK="0", DEEDPAGE="0", RECORDDATE=None)], 0)
-    snap(con, "s2", [sale(DEEDBOOK="0", DEEDPAGE="0", RECORDDATE=None, SALEDATE="2022-06-20")], 1)
-    assert [r[:2] for r in issues(con, MISSING)] == [("resolved", "removed"), ("open", None)]
+    snap(con, "s1", [sale(DEEDBOOK="0", DEEDPAGE="0", RECORDDATE=BAD_DATE)], 0)
+    snap(con, "s2", [sale(DEEDBOOK="0", DEEDPAGE="0", RECORDDATE=BAD_DATE, SALEDATE="2022-06-20")], 1)
+    assert [r[:2] for r in issues(con, INVALID)] == [("resolved", "removed"), ("open", None)]
 
 
 def test_rule_changed_on_version_change(con):
-    snap(con, "s1", [sale(RECORDDATE=None)], 0)
-    evaluate(con, "r", build_typed(con), with_check(MISSING, where="record_date_text IS NULL AND false"))
-    assert issues(con, MISSING) == [("resolved", "rule_changed", at(0), at(0), at(0), "quarantine", None)]
+    snap(con, "s1", [sale(RECORDDATE=BAD_DATE)], 0)
+    evaluate(con, "r", build_typed(con), with_check(INVALID, where="false"))
+    assert issues(con, INVALID) == [("resolved", "rule_changed", at(0), at(0), at(0), "quarantine", None)]
 
 
 def test_action_change_keeps_issue_open(con):
-    snap(con, "s1", [sale(RECORDDATE=None)], 0)
-    snap(con, "s2", [sale(RECORDDATE=None)], 1, checks=with_check(MISSING, action="flag"))
-    assert issues(con, MISSING) == [("open", None, at(0), at(1), None, "flag", None)]
+    snap(con, "s1", [sale(RECORDDATE=BAD_DATE)], 0)
+    snap(con, "s2", [sale(RECORDDATE=BAD_DATE)], 1, checks=with_check(INVALID, action="flag"))
+    assert issues(con, INVALID) == [("open", None, at(0), at(1), None, "flag", None)]
 
 
 def test_retired_check_closes_as_rule_changed(con):
-    snap(con, "s1", [sale(RECORDDATE=None)], 0)
-    snap(con, "s2", [sale(RECORDDATE=None)], 1, checks=with_check(MISSING, retired=True))
-    assert issues(con, MISSING) == [("resolved", "rule_changed", at(0), at(0), at(1), "quarantine", None)]
+    snap(con, "s1", [sale(RECORDDATE=BAD_DATE)], 0)
+    snap(con, "s2", [sale(RECORDDATE=BAD_DATE)], 1, checks=with_check(INVALID, retired=True))
+    assert issues(con, INVALID) == [("resolved", "rule_changed", at(0), at(0), at(1), "quarantine", None)]
 
 
 def test_reopen_creates_new_issue(con):
-    snap(con, "s1", [sale(RECORDDATE=None)], 0)
+    snap(con, "s1", [sale(RECORDDATE=BAD_DATE)], 0)
     snap(con, "s2", [sale()], 1)
-    snap(con, "s3", [sale(RECORDDATE=None)], 2)
-    assert [r[:3] for r in issues(con, MISSING)] == [("resolved", "fixed", at(0)), ("open", None, at(2))]
+    snap(con, "s3", [sale(RECORDDATE=BAD_DATE)], 2)
+    assert [r[:3] for r in issues(con, INVALID)] == [("resolved", "fixed", at(0)), ("open", None, at(2))]
 
 
 def test_return_to_earlier_snapshot_reevaluates(con):
-    snap(con, "A", [sale(RECORDDATE=None)], 0)
+    snap(con, "A", [sale(RECORDDATE=BAD_DATE)], 0)
     snap(con, "B", [sale()], 1)
     refetch(con, "A", 2)
     evaluate(con, "r", build_typed(con), CHECKS)
-    assert [r[:3] for r in issues(con, MISSING)] == [("resolved", "fixed", at(0)), ("open", None, at(2))]
+    assert [r[:3] for r in issues(con, INVALID)] == [("resolved", "fixed", at(0)), ("open", None, at(2))]
 
 
 def test_rule_edit_then_revert_on_same_snapshot_reopens(con):
-    snap(con, "s1", [sale(RECORDDATE=None)], 0)
+    snap(con, "s1", [sale(RECORDDATE=BAD_DATE)], 0)
     point = build_typed(con)
-    evaluate(con, "r", point, with_check(MISSING, where="record_date_text IS NULL AND false"))
+    evaluate(con, "r", point, with_check(INVALID, where="false"))
     evaluate(con, "r", point, CHECKS)
-    assert [r[:2] for r in issues(con, MISSING)] == [("resolved", "rule_changed"), ("open", None)]
+    assert [r[:2] for r in issues(con, INVALID)] == [("resolved", "rule_changed"), ("open", None)]
 
 
 def test_action_change_on_same_snapshot_updates_issue(con):
-    snap(con, "s1", [sale(RECORDDATE=None)], 0)
-    evaluate(con, "r", build_typed(con), with_check(MISSING, action="flag"))
-    assert [r[5] for r in issues(con, MISSING)] == ["flag"]
+    snap(con, "s1", [sale(RECORDDATE=BAD_DATE)], 0)
+    evaluate(con, "r", build_typed(con), with_check(INVALID, action="flag"))
+    assert [r[5] for r in issues(con, INVALID)] == ["flag"]

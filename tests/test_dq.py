@@ -54,9 +54,9 @@ def test_possible_duplicate_and_key_not_unique(con):
 
 
 def test_check_run_rates(con):
-    run(con, [sale(), sale(DEEDPAGE="2"), sale(DEEDPAGE="3"), sale(DEEDPAGE="4", RECORDDATE=None)])
+    run(con, [sale(), sale(DEEDPAGE="2"), sale(DEEDPAGE="3"), sale(DEEDPAGE="4", RECORDDATE="0212-08-01")])
     assert con.execute(
-        "SELECT n_failing, n_rows, rate, action FROM dq.check_run WHERE check_id = 'record_date_missing'"
+        "SELECT n_failing, n_rows, rate, action FROM dq.check_run WHERE check_id = 'record_date_invalid'"
     ).fetchone() == (1, 4, 0.25, "quarantine")
     assert con.execute("SELECT count(*) FROM dq.check_run").fetchone() == (len(CHECKS),)
 

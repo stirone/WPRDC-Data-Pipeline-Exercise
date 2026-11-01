@@ -2,7 +2,7 @@
 
 Claude.ai and Claude Code in VS Code were used extensively on this exercise. This document explains when each tool was used,
 how the work was divided, and where the important decisions came from, so a reviewer
-can judge both the code and how I worked with the AI.
+can judge both the code and how I worked with the AI assistant.
 
 The full session transcripts are linked below. This page is a guide to them.
 
@@ -10,7 +10,7 @@ The full session transcripts are linked below. This page is a guide to them.
 
 | Tool | Used for |
 |---|---|
-| **Claude.ai** | Early exploration: learning about the four candidate datasets and the WPRDC CKAN API. This session was started in the car on my drive back from Buffalo, interacting by voice through Apple Car Play. I then picked it up later on my laptop and interacted with it while testing out the CKAN API, which returned errors initially, driving my decision to include logging of connection issues and bad responses.|
+| **Claude.ai** | Early exploration: learning about the four candidate datasets and the WPRDC CKAN API. This session was started in the car on my drive back from Buffalo, interacting by voice through Apple CarPlay. I then picked it up later on my laptop and interacted with it while testing out the CKAN API, which returned errors initially, driving my decision to include logging of connection issues and bad responses.|
 | **Claude Code** (CLI, Claude Opus 5.5) | Building the pipeline: writing the Python and SQL, writing and running tests, calling the live API, querying the data, and making git commits. |
 
 ## Division of labor
@@ -27,13 +27,13 @@ specific cases.
 
 | Date | Session | Topics | Transcript |
 |---|---|---|---|
-| 2026-10-?? | Claude.ai | Dataset exploration; first logging-schema idea | [`ai-sessions/2026-10-25-wprdc_conversation_transcript.txt`](ai-sessions/2026-10-25-wprdc_conversation_transcript.txt) |
+| 2026-10-25 | Claude.ai | Dataset exploration; first logging-schema idea | [`ai-sessions/2026-10-25-wprdc_conversation_transcript.txt`](ai-sessions/2026-10-25-wprdc_conversation_transcript.txt) |
 | 2026-10-26 | Claude Code #1 | Fetch logging, raw landing, raw snapshots, DuckDB version pin, row hashes | [`ai-sessions/2026-10-26-ingest-and-raw-layer.txt`](ai-sessions/2026-10-26-ingest-and-raw-layer.txt) |
 | 2026-10-28 | Claude Code #2 | Status review; second snapshot (+507 / −206 row versions, unchanged rows not rewritten); why a run makes 3 requests; re-run check; DuckDB UI for browsing; natural key investigation; data quality design (quarantine vs. flag, steward's issue list, rate-jump alerts, key collisions don't fail runs), plan, implementation and review fixes | [`ai-sessions/2026-10-28-220407-where-are-we-on-this-project.txt`](ai-sessions/2026-10-28-220407-where-are-we-on-this-project.txt) |
 | 2026-10-30 | Claude Code #3 | Third snapshot; typed table moved from `clean` to a new `staging` schema; choosing the analytical question; naming the layer `analytics` and the fact table `sales` | [`ai-sessions/2026-10-30-130735-lets-do-another-pipeline-run.txt`](ai-sessions/2026-10-30-130735-lets-do-another-pipeline-run.txt) |
 | 2026-10-30 | Claude Code #4 | Analytics layer design (estate deeds, denominator, parcel-count estimate rejected, table not chart, output as a view), plan, implementation, final review and fix; `python -m wprdc.pipeline`; push to GitHub | [`ai-sessions/2026-10-30-153811-lets-pick-up-where-left-off.txt`](ai-sessions/2026-10-30-153811-lets-pick-up-where-left-off.txt) |
 | 2026-10-30 | Claude Code #5 | What `not_analyzed_transfers` means and how to explain it to others: column comments in DuckDB and a footnote under the printed table | [`ai-sessions/2026-10-30-205055-what-is-this-notanalyzed-column-in-the-analyti.txt`](ai-sessions/2026-10-30-205055-what-is-this-notanalyzed-column-in-the-analyti.txt) |
-| 2026-10-31 | Claude Code #6 | Time spent; remaining requirements; README draft, checked against the code and database; found the row-count gap (below) | _transcript to be added_ |
+| 2026-10-31 | Claude Code #6 | Time spent; remaining requirements; README draft, checked against the code and database; found the row-count gap (below) and documented it here; CKAN API vs. the `ckanapi` library, explained up front in the README | [`ai-sessions/2026-10-31-0914720-are-you-able-to-tell-me-how-much-time-we-have-wor.txt`](ai-sessions/2026-10-31-0914720-are-you-able-to-tell-me-how-much-time-we-have-wor.txt) |
 
 ## Decisions I made
 
@@ -78,7 +78,7 @@ specific cases.
   resolved and when, as fixed, replaced, removed or rule changed. I dropped "who
   fixed it" as out of reach for now.
 - **Only the engineer changes checks, in code,** reviewed through git. I expect
-  the data steward and me to work on the rules together.
+  the data steward and the data engineer to work on the rules together.
 - **Kept the row hash** after asking whether it was needed. It is not required for
   correctness, but it makes snapshot comparison cheap and is the natural answer
   at 100x scale.
