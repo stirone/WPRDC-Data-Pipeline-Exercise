@@ -34,6 +34,7 @@ specific cases.
 | 2026-10-30 | Claude Code #4 | Analytics layer design (estate deeds, denominator, parcel-count estimate rejected, table not chart, output as a view), plan, implementation, final review and fix; `python -m wprdc.pipeline`; push to GitHub | [`ai-sessions/2026-10-30-153811-lets-pick-up-where-left-off.txt`](ai-sessions/2026-10-30-153811-lets-pick-up-where-left-off.txt) |
 | 2026-10-30 | Claude Code #5 | What `not_analyzed_transfers` means and how to explain it to others: column comments in DuckDB and a footnote under the printed table | [`ai-sessions/2026-10-30-205055-what-is-this-notanalyzed-column-in-the-analyti.txt`](ai-sessions/2026-10-30-205055-what-is-this-notanalyzed-column-in-the-analyti.txt) |
 | 2026-10-31 | Claude Code #6 | Time spent; remaining requirements; README draft, checked against the code and database; found the row-count gap (below) and documented it here; CKAN API vs. the `ckanapi` library, explained up front in the README | [`ai-sessions/2026-10-31-0914720-are-you-able-to-tell-me-how-much-time-we-have-wor.txt`](ai-sessions/2026-10-31-0914720-are-you-able-to-tell-me-how-much-time-we-have-wor.txt) |
+| 2026-11-01 | Claude Code #7 | What `python -m pytest` tests (the code, not the data); ER diagram of the analytics tables for the README; tests moved from `record_date_missing` to `record_date_invalid`, so switching that check to a flag doesn't break them (checked: 109 pass either way); spell check; README section on changing or adding a check | [`ai-sessions/2026-11-01-104251-im-sorry-but-i-do-not-understand-what-the-pyth.txt`](ai-sessions/2026-11-01-104251-im-sorry-but-i-do-not-understand-what-the-pyth.txt) |
 
 ## Decisions I made
 
@@ -72,6 +73,12 @@ specific cases.
 - **Missing record dates are quarantined, with misgivings.** Most of the 1,248 are
   mobile home sales and other instruments that may never be recorded. I want the
   data steward's view before deciding; switching to a flag is a one-word change.
+- **The tests don't depend on `record_date_missing` staying a quarantine check.** I
+  left it quarantined so a reviewer could try switching it to a flag. Several tests
+  had used it as their example of a quarantine check, so trying the switch would have
+  made 9 of them fail. They now use `record_date_invalid`, which should always
+  quarantine, and I dropped the test that pinned down which checks quarantine. All
+  109 tests pass either way.
 - **"In the future" means after the download date,** so rebuilding an old snapshot
   gives the same answer as the original run.
 - **Fixes happen in the source system.** The pipeline records that an issue was

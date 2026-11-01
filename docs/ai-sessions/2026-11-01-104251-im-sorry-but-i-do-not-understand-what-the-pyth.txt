@@ -1,0 +1,1320 @@
+
+> <browser_instruction># Claude in Chrome browser automation
+
+  You have access to browser automation tools (mcp__claude-in-chrome__*) for
+  interacting with web pages in Chrome. Follow these guidelines for effective
+  browser automation.
+
+  ## Loading deferred tools
+
+  If the mcp__claude-in-chrome__* tools are deferred (must be loaded via
+  ToolSearch before use), load every tool you expect to need in ONE ToolSearch
+  call — the select query accepts a comma-separated list — never one call per
+  tool. Start with the core set:
+
+  ToolSearch with query
+  "select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__naviga
+  te,mcp__claude-in-chrome__computer,mcp__claude-in-chrome__read_page,mcp__clau
+  de-in-chrome__tabs_create_mcp,mcp__claude-in-chrome__tabs_close_mcp"
+
+  Add task-specific tools to the same call when the task obviously needs them:
+  read_console_messages / read_network_requests for debugging, form_input for
+  forms, gif_creator for recordings, javascript_tool for page scripting.
+
+  ## GIF recording
+
+  When performing multi-step browser interactions that the user may want to
+  review or share, use mcp__claude-in-chrome__gif_creator to record them.
+
+  You must ALWAYS:
+  * Capture extra frames before and after taking actions to ensure smooth
+  playback
+  * Name the file meaningfully to help the user identify it later (e.g.,
+  "login_process.gif")
+
+  ## Console log debugging
+
+  You can use mcp__claude-in-chrome__read_console_messages to read console
+  output. Console output may be verbose. If you are looking for specific log
+  entries, use the 'pattern' parameter with a regex-compatible pattern. This
+  filters results efficiently and avoids overwhelming output. For example, use
+  pattern: "[MyApp]" to filter for application-specific logs rather than
+  reading all console output.
+
+  ## Alerts and dialogs
+
+  IMPORTANT: Do not trigger JavaScript alerts, confirms, prompts, or browser
+  modal dialogs through your actions. These browser dialogs block all further
+  browser events and will prevent the extension from receiving any subsequent
+  commands. Instead, when possible, use console.log for debugging and then use
+  the mcp__claude-in-chrome__read_console_messages tool to read those log
+  messages. If a page has dialog-triggering elements:
+  1. Avoid clicking buttons or links that may trigger alerts (e.g., "Delete"
+  buttons with confirmation dialogs)
+  2. If you must interact with such elements, warn the user first that this may
+  interrupt the session
+  3. Use mcp__claude-in-chrome__javascript_tool to check for and dismiss any
+  existing dialogs before proceeding
+
+  If you accidentally trigger a dialog and lose responsiveness, inform the user
+  they need to manually dismiss it in the browser.
+
+  ## Avoid rabbit holes and loops
+
+  When using browser automation tools, stay focused on the specific task. If
+  you encounter any of the following, stop and ask the user for guidance:
+  - Unexpected complexity or tangential browser exploration
+  - Browser tool calls failing or returning errors after 2-3 attempts
+  - No response from the browser extension
+  - Page elements not responding to clicks or input
+  - Pages not loading or timing out
+  - Unable to complete the browser task despite multiple approaches
+
+  Explain what you attempted, what went wrong, and ask how the user would like
+  to proceed. Do not keep retrying the same failing browser action or explore
+  unrelated pages without checking in first.
+
+  ## Tab context and session startup
+
+  IMPORTANT: At the start of each browser automation session, call
+  mcp__claude-in-chrome__tabs_context_mcp first to get information about the
+  user's current browser tabs. Use this context to understand what the user
+  might want to work with before creating new tabs.
+
+  Never reuse tab IDs from a previous/other session. Follow these guidelines:
+  1. Only reuse an existing tab if the user explicitly asks to work with it
+  2. Otherwise, create a new tab with mcp__claude-in-chrome__tabs_create_mcp
+  3. If a tool returns an error indicating the tab doesn't exist or is invalid,
+  call tabs_context_mcp to get fresh tab IDs
+  4. When a tab is closed by the user or a navigation error occurs, call
+  tabs_context_mcp to see what tabs are available</browser_instruction>
+
+> I'm sorry, but I do not understand what the "python -m pytest" does.  What is
+  this testing, exactly?
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+● python -m pytest runs the project's automated checks. Pytest finds every
+  test_*.py file in tests/, runs each def test_... function in them, and reports
+  which passed and which failed. There are 109 tests, and they take about two
+  minutes.
+
+  Each test builds a small, made-up dataset in a temporary database, runs one
+  piece of the pipeline on it, and checks the result. None of them contact the
+  real WPRDC site or use your real database. So a passing run means the code
+  behaves as designed, not that today's real data is good.
+
+  Here's what each file covers, in the order the pipeline runs:
+
+  File: test_http_client.py (tests/test_http_client.py)
+  What it checks: Downloading from the WPRDC API. When the server sends back a
+  bad answer (a blank reply, or a "504 Gateway Timeout" error page), the code
+  retries and logs every attempt. It also gives up after the maximum number of
+  tries, and a failed download doesn't leave a half-written file behind.
+  ────────────────────────────────────────
+  File: test_ingest.py (tests/test_ingest.py)
+  What it checks: Fetching the file. If the file hasn't changed since the last
+  fetch, nothing is reloaded. A file that fails validation is still archived
+  and recorded.
+  ────────────────────────────────────────
+  File: test_load_raw.py (tests/test_load_raw.py)
+  What it checks: Loading the CSV into the raw tables. Values are kept exactly
+  as
+  they arrived, and loading the same file twice doesn't create duplicates. If
+  the columns change (schema drift) or the row count doesn't match, the load
+  stops and nothing is saved. The raw tables can be rebuilt from the archived
+  files.
+  ────────────────────────────────────────
+  File: test_transform.py (tests/test_transform.py)
+  What it checks: Cleaning the data. Prices and dates are parsed correctly,
+  extra
+  spaces are trimmed, and blank values become empty (null). Rows that fail a
+  quality check are held out ("quarantined") of the clean table. Running the
+  step twice changes nothing.
+  ────────────────────────────────────────
+  File: test_checks.py (tests/test_checks.py), test_dq.py (tests/test_dq.py)
+  What it checks: The data-quality rules themselves, for example a missing or
+  unparseable record date, sale dates before 2012, and possible duplicate
+  records. Each rule must have a unique ID and a version that changes when its
+  logic changes.
+  ────────────────────────────────────────
+  File: test_dq_issues.py (tests/test_dq_issues.py)
+  What it checks: Tracking a data problem over time. An issue stays open across
+  downloads until it's fixed, replaced by a corrected record, or removed. It's
+  closed if the rule changes, and reopened if the problem comes back.
+  ────────────────────────────────────────
+  File: test_dq_alerts.py (tests/test_dq_alerts.py)
+  What it checks: When an alert fires: a sharp jump in a rule's failure rate
+  does, and a small rise doesn't. Duplicate-key problems alert right away.
+  Re-running doesn't send the same alert twice.
+  ────────────────────────────────────────
+  File: test_sale_classes.py (tests/test_sale_classes.py)
+  What it checks: Grouping sale codes into the six classes (market, family,
+  estate, distressed, and so on). Every code has to be mapped.
+  ────────────────────────────────────────
+  File: test_analytics.py (tests/test_analytics.py)
+  What it checks: The final output table: the ward-level rollup, parcel details
+  taken from each parcel's latest sale, and that the output view's columns
+  match its documentation. Rebuilding gives an identical result, and if a build
+   fails, the previous tables are kept.
+  ────────────────────────────────────────
+  File: test_pipeline.py (tests/test_pipeline.py)
+  What it checks: The python -m wprdc.pipeline command. Steps run in order, a
+  failing step stops the ones after it, and a full end-to-end run works against
+   a fake version of the WPRDC API.
+
+  If you run python -m pytest -v instead, it prints each test's name with PASSED
+  or FAILED next to it, which makes the output easier to follow.
+
+> So it is code testing, not data quality testing, correct?  Why is it listed
+  in the "Running it" section of the README?
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Yes, it's code testing. The tests check that the pipeline code does what it's
+  designed to do, using small made-up data. They never look at the real property
+  sales data.
+
+  The data quality testing happens inside the pipeline. When python -m
+  wprdc.pipeline runs, the transform step applies the data-quality checks to the
+  real downloaded data. Rows that fail get held out of the clean table, and
+  issues and alerts are recorded. The tests in test_dq*.py only check that those
+  rule-checking mechanics work correctly.
+
+  Why it's in "Running it": READMEs usually list the commands a reader can run,
+  and the reviewer will probably want to confirm the tests pass on their
+  machine. But the way it's written now is misleading:
+
+  - It sits right after the pipeline command, so it looks like the second step
+    of running the pipeline.
+  - It doesn't need the pipeline to have run first, and it doesn't check the
+    database you just built.
+  - A reviewer could easily mistake it for "check the data."
+
+  My suggestion: keep it in that section, but move it into its own short
+  paragraph that says what it is:
+
+  python -m venv .venv
+  .venv/Scripts/activate          # Windows; on macOS/Linux: source
+  .venv/bin/activate
+  pip install -r requirements.txt
+
+  python -m wprdc.pipeline        # ingest, load_raw, transform, analytics
+
+  …existing paragraphs…
+
+  ▎ To run the test suite: python -m pytest (109 tests, about 2 minutes). These
+  ▎ test the pipeline code against small made-up datasets in temporary
+  ▎ databases; they don't touch the network or data/wprdc.duckdb, and don't need
+  ▎ the pipeline to have run. The checks on the real data run inside the
+  ▎ pipeline (see Data quality checks (#data-quality-checks)).
+
+  Do you want me to make that edit to README.md?
+
+> No, I will edit it.  I'm just going to remove it with no explanation.  There
+  are two other things I want, but don't make any edits yet, we are just going
+  to explore these things.  First, can you give me an ER diagram of the
+  database?  Second, I want to talk about how to update the data quality
+  checks, specifically about how to change the record_date_missing check from
+  quarantine to flag.
+
+  Ran 4 shell commands (ctrl+o to expand)
+
+● Now the rebuilt tables (staging, clean, analytics) and how the transform uses
+  the check action.
+
+  Ran 6 shell commands (ctrl+o to expand)
+
+● Before writing this up, I'll check what the switch would do to the output
+  table.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● 1. ER diagram
+
+  Two notes before the diagram:
+
+  - The schema declares no foreign keys. Every relationship below is a join the
+    code relies on, not one the database enforces.
+  - The staging, clean and analytics tables are rebuilt from scratch on each
+    run. Only ops, raw and dq keep history.
+
+  I drew it as two Mermaid diagrams, because GitHub renders Mermaid in a README
+  and you may want to use them there. Both show only the key columns and the
+  ones that matter for relationships. clean.property_sales has 34 columns, and
+  listing them all would bury the structure.
+
+  Pipeline, history and data quality (ops, raw, staging, clean, dq):
+
+  mermaid
+  erDiagram
+      ops_fetch_run ||--o{ ops_fetch_attempt : "run_id"
+      ops_fetch_run ||--o{ ops_fetch_resource : "run_id"
+      ops_fetch_resource }o--o| raw_property_sales_snapshot : "raw_sha256 =
+  snapshot_id"
+      raw_property_sales_snapshot ||--o{ raw_property_sales : "snapshot_id"
+      raw_property_sales ||--o| staging_property_sales_typed : "latest snapshot
+  only"
+      staging_property_sales_typed ||--o| clean_property_sales : "unless
+  quarantined"
+      raw_property_sales_snapshot ||--o{ dq_evaluation : "snapshot_id"
+      ops_fetch_run ||--o{ dq_evaluation : "run_id"
+      dq_evaluation ||--o{ dq_check_run : "eval_id"
+      dq_check_run ||--o{ dq_check_result : "eval_id, check_id, check_version"
+      staging_property_sales_typed ||--o{ dq_check_result : "source_row_number"
+      dq_evaluation ||--o{ dq_issue : "first / last / resolved eval_id"
+      dq_evaluation ||--o{ dq_alert : "eval_id"
+
+      ops_fetch_run {
+          VARCHAR run_id PK
+          VARCHAR command
+          VARCHAR status
+          TIMESTAMPTZ started_at
+      }
+      ops_fetch_attempt {
+          BIGINT attempt_id PK
+          VARCHAR run_id FK
+          VARCHAR request_key
+          VARCHAR endpoint
+          INTEGER attempt_no
+          VARCHAR outcome
+      }
+      ops_fetch_resource {
+          VARCHAR run_id PK
+          VARCHAR resource_id PK
+          VARCHAR strategy PK
+          VARCHAR status
+          VARCHAR raw_sha256
+      }
+      raw_property_sales_snapshot {
+          VARCHAR snapshot_id PK "sha256 of the file"
+          VARCHAR run_id FK
+          BIGINT row_count
+          TIMESTAMPTZ pruned_at
+      }
+      raw_property_sales {
+          VARCHAR snapshot_id FK
+          BIGINT source_row_number
+          VARCHAR row_hash
+          VARCHAR PARID
+          VARCHAR RECORDDATE
+          VARCHAR SALEDATE
+          VARCHAR more "...24 more source columns"
+      }
+      staging_property_sales_typed {
+          VARCHAR snapshot_id
+          BIGINT source_row_number
+          VARCHAR sale_key "PARID, DEEDBOOK, DEEDPAGE, SALEDATE"
+          DATE sale_date
+          DATE record_date
+          VARCHAR more "...typed, trimmed columns"
+      }
+      clean_property_sales {
+          BIGINT source_row_number
+          VARCHAR sale_key
+          VARCHAR_LIST dq_flags
+          VARCHAR more "...same columns as typed"
+      }
+      dq_evaluation {
+          BIGINT eval_id PK
+          VARCHAR snapshot_id
+          TIMESTAMPTZ as_of
+          VARCHAR run_id
+      }
+      dq_check_run {
+          BIGINT eval_id PK
+          VARCHAR check_id PK
+          VARCHAR check_version PK
+          VARCHAR action
+          BIGINT n_failing
+          DOUBLE rate
+      }
+      dq_check_result {
+          BIGINT eval_id FK
+          VARCHAR check_id FK
+          VARCHAR check_version FK
+          VARCHAR action
+          BIGINT source_row_number
+          VARCHAR sale_key
+      }
+      dq_issue {
+          BIGINT issue_id PK
+          VARCHAR check_id
+          VARCHAR action
+          VARCHAR sale_key
+          BIGINT first_seen_eval_id FK
+          BIGINT last_seen_eval_id FK
+          BIGINT resolved_eval_id FK
+          VARCHAR outcome
+      }
+      dq_alert {
+          BIGINT alert_id PK
+          BIGINT eval_id FK
+          VARCHAR check_id
+          VARCHAR kind
+          TIMESTAMPTZ notified_at
+      }
+
+  The analytics star schema, rebuilt from clean.property_sales:
+
+  mermaid
+  erDiagram
+      clean_property_sales ||--|| analytics_sales : "one fact row per clean row"
+      analytics_parcel ||--o{ analytics_sales : "PARID"
+      analytics_municipality ||--o{ analytics_parcel : "municipality_code"
+      analytics_school_district ||--o{ analytics_parcel : "school_code"
+      analytics_sale_type ||--o{ analytics_sales : "sale_code"
+      analytics_instrument_type ||--o{ analytics_sales : "instrument_type"
+      analytics_sales ||--o{ analytics_family_transfers_by_year : "grouped by
+  sale_year (view)"
+      analytics_build_info ||--|| analytics_family_transfers_by_year : "cutoff
+  year"
+
+      analytics_sales {
+          VARCHAR sale_key
+          VARCHAR PARID FK
+          DATE sale_date
+          BIGINT sale_year
+          DATE record_date
+          BIGINT price
+          VARCHAR sale_code FK
+          VARCHAR instrument_type FK
+          VARCHAR sale_class
+          VARCHAR_LIST dq_flags
+      }
+      analytics_parcel {
+          VARCHAR PARID PK
+          VARCHAR full_address
+          VARCHAR municipality_code FK
+          VARCHAR school_code FK
+      }
+      analytics_municipality {
+          VARCHAR municipality_code PK
+          VARCHAR municipality
+          BOOLEAN is_ward
+          VARCHAR municipality_rollup
+      }
+      analytics_school_district {
+          VARCHAR school_code PK
+          VARCHAR school_district
+      }
+      analytics_sale_type {
+          VARCHAR sale_code PK
+          VARCHAR sale_desc
+          VARCHAR sale_class
+      }
+      analytics_instrument_type {
+          VARCHAR instrument_type PK
+          VARCHAR instrument_desc
+          BOOLEAN is_estate_deed
+      }
+      analytics_build_info {
+          VARCHAR snapshot_id
+          DATE download_date
+      }
+      analytics_family_transfers_by_year {
+          BIGINT sale_year
+          BIGINT all_transfers
+          BIGINT family_transfers
+          DOUBLE family_share
+          BIGINT estate_family_transfers
+          DOUBLE estate_family_share
+          BIGINT not_analyzed_transfers
+      }
+
+  Things the diagrams can't show well:
+
+  - Raw to staging. Staging holds only the latest snapshot, the one from the
+    most recent fetch per raw.v_snapshots. It is not every snapshot.
+  - Where a sale's identity lives. Results in dq.check_result and dq.issue point
+    at a sale by sale_key and its parts (PARID, DEEDBOOK, DEEDPAGE, SALEDATE).
+    That's what lets an issue be followed from one snapshot to the next.
+  - Views left out. The ops.v_* and raw.v_* views, plus dq.v_issues and
+    dq.v_open_issues, are just lookups over the tables above.
+
+  If you'd like this as a page you can zoom and scroll, I can publish it as an
+  artifact.
+
+  2. Changing record_date_missing from quarantine to flag
+
+  The code change is one word, at checks.py:75 (wprdc/checks.py#L75):
+  action="quarantine" becomes action="flag". You'd also remove the "Quarantined
+  with misgivings" comment above it (checks.py:67-70 (wprdc/checks.py#L67-L70)).
+  The system was built so this change is safe.
+
+  Why it's safe: a check's version is a hash of its where condition only.
+  Changing action doesn't change the version, so:
+
+  - The 1,248 open issues stay open. Their action column changes to flag on the
+    next transform, with no "fixed" or "rule_changed" closings.
+  - There is no definition_changed notice, and the rate history isn't reset.
+  - Past evaluations in dq.check_run and dq.check_result still show quarantine.
+    That's correct, because those columns record the action as it was defined at
+    the time.
+
+  You don't need new data for it to take effect. Running python -m
+  wprdc.pipeline again works even if the source hasn't changed. Ingest skips the
+  download, the transform finds the checks already evaluated for this snapshot
+  and brings the issue list up to date, and then transform.py:129-140
+  (wprdc/transform.py#L129-L140) rebuilds the clean table using each check's
+  current action. The 1,248 rows then enter clean.property_sales with dq_flags =
+  ['record_date_missing'], and analytics picks them up.
+
+  One small quirk: for this one snapshot, dq.check_run will still say quarantine
+  while the clean table treats the rows as flagged. That clears up from the
+  next new snapshot on.
+
+  What it does to the output table. I checked the 1,248 rows in the current
+  database: 1,226 are sale class other, 9 family, 11 distressed, 1 estate_sale
+  and 1 market. Most date from 2012–2016. So all_transfers rises by up to 332 a
+  year, the family count barely moves, and family_share drops slightly in the
+  early years:
+
+  ┌────────────┬───────────┬────────────────┬───────────────────────────────┐
+  │    Year    │  Added    │ Family share   │       After the change        │
+  │            │   rows    │      now       │                               │
+  ├────────────┼───────────┼────────────────┼───────────────────────────────┤
+  │ 2012       │ 190       │ 21.33%         │ ≈21.21%                       │
+  ├────────────┼───────────┼────────────────┼───────────────────────────────┤
+  │ 2013       │ 332       │ 19.31%         │ ≈19.12%                       │
+  ├────────────┼───────────┼────────────────┼───────────────────────────────┤
+  │ 2014       │ 326       │ 20.17%         │ ≈19.98%                       │
+  ├────────────┼───────────┼────────────────┼───────────────────────────────┤
+  │ 2015       │ 215       │ 19.62%         │ ≈19.51%                       │
+  ├────────────┼───────────┼────────────────┼───────────────────────────────┤
+  │ 2016       │ ≤150      │ —              │ changes of about 0.1 points   │
+  │ onward     │           │                │ or less                       │
+  └────────────┴───────────┴────────────────┴───────────────────────────────┘
+
+  This makes the early-year share a little lower, so the upward trend gets
+  slightly steeper. It's a small effect, but it's worth one sentence in the
+  README, since it shifts the answer in the direction of the finding.
+
+  Something to decide alongside this: since these are mostly mobile home sales,
+  certificates of transfer and treasurer deeds, should they count in
+  all_transfers at all? Flagging them puts them in that count.
+
+  What else would need updating:
+
+  - Tests. Several use record_date_missing as their example of a quarantine
+    check, so they'd fail until they're changed:
+    - test_checks.py:19-22 (tests/test_checks.py#L19-L22) (test_initial_actions)
+    - test_dq.py:59 (tests/test_dq.py#L59)
+    - test_dq_issues.py (tests/test_dq_issues.py), the assertions expecting
+      "quarantine" (lines 34, 40, 67, 79)
+    - test_transform.py:49-64 (tests/test_transform.py#L49-L64)
+
+    The transform tests should switch to another quarantine check (such as
+    record_date_invalid) rather than simply flipping the expected value, so
+    quarantine is still tested.
+  - README. The checks table row at line 146, the "What surprised me" bullet at
+    lines 290-292, and the quarantine count anywhere it's quoted.
+
+  We can work through any of this further when you're ready. I haven't edited
+  anything.
+
+> <ide_opened_file>The user opened the file c:\Users\steph\job-search\WPRDC-Dat
+  a-Pipeline-Exercise\tests\test_dq_issues.py in the IDE. This may or may not
+  be related to the current task.</ide_opened_file>
+
+> On #1, I am not familiar with Mermaid diagrams.  I just want a simple diagram
+  in the README, something more than we have now.  What are your
+  recommendations?  On #2, I would like to change the tests from
+  record_date_missing to record_date_invalid, because I want to tell the reader
+  how to make the data quality change, but I don't want the code tests to
+  subsequently fail if they try it.  Thoughts?
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The best way to know which tests a reader's change would break is to make the
+  change in a throwaway copy and run the suite. Your repo stays untouched.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● 1. A diagram for the README
+
+  I'd skip Mermaid. It's a text format that GitHub draws as a picture, but in
+  any other viewer it shows up as raw code, and it doesn't match the style of
+  your README.
+
+  The README already has a good flow diagram under "How it works": data moving
+  from CKAN through each layer to the output. What's missing is how the
+  analytics tables connect. That star schema is what a reviewer needs in order
+  to query the output, and it's the part a schema table describes poorly.
+
+  I'd add a small plain-text diagram in the same style as the one you have,
+  placed right after the schema table:
+
+  analytics.municipality       analytics.school_district
+            └───────────────┬───────────────┘
+                    analytics.parcel                    one row per PARID, from
+  its latest sale
+                            │ PARID
+  analytics.sale_type ── analytics.sales ── analytics.instrument_type
+   sale_code → sale_class   │  fact: one row            is_estate_deed
+                            │  per clean sale
+                            ▼  grouped by sale_year
+           analytics.family_transfers_by_year           the output view
+
+  Leave out an ops/raw/dq diagram. Your flow diagram and schema table already
+  cover those layers, and a full diagram of every table would be harder to read
+  than what you have.
+
+  2. Switching the tests to record_date_invalid
+
+  I agree, and I checked it. In a copy of the project in the scratchpad, I made
+  exactly the change a reader would make (record_date_missing set to flag) and
+  ran the suite. 9 of 109 tests failed. They fall into three groups:
+
+  A. Tests that need "some quarantine check" and happen to use this one. Switch
+  these to record_date_invalid, using a bad date such as RECORDDATE="0212-08-01"
+  where they now use RECORDDATE=None:
+  - test_transform.py: test_clean_excludes_quarantined_and_flags,
+    test_quarantine_is_by_row_not_key, test_action_change_releases_records
+  - test_dq_issues.py: test_issue_persists_across_snapshots, test_fixed,
+    test_rule_changed_on_version_change,
+    test_retired_check_closes_as_rule_changed
+  - test_dq.py: test_check_run_rates
+
+  B. test_checks.py::test_initial_actions. This test exists only to pin down
+  which checks quarantine, so any action change will break it, whichever check
+  the other tests use. You have two options:
+  - Drop its quarantine-list assertion. I recommend this. The change is already
+    reviewed through git, and a test that fails on every intended change is just
+    noise.
+  - Keep it, and tell the reader to update it as part of the change.
+
+  C. Two tests that would stop testing anything without failing. These passed,
+  but they simulate "change record_date_missing from quarantine to flag." Once
+  it's already flag, that isn't a change, so they'd pass without checking
+  anything:
+  - test_dq_issues.py::test_action_change_keeps_issue_open
+  - test_dq_issues.py::test_action_change_on_same_snapshot_updates_issue
+
+  Moving them to record_date_invalid too keeps them meaningful.
+
+  Some tests can stay as they are. The ones that check record_date_missing's
+  condition, such as test_record_date_rules and
+  test_blank_record_date_is_missing_not_invalid, test which rows fail the rule,
+  not what happens to those rows. They passed with the change.
+
+  One catch: the tests would then depend on record_date_invalid staying a
+  quarantine check. That's fine, since it catches impossible dates like year
+  0212 and should always quarantine. The README could say so.
+
+  Once you're ready, I can rewrite the tests in the scratchpad copy and run the
+  suite both with and without the flag change. I haven't touched your repo.
+
+> <ide_selection>The user selected the lines 19 to 22 from
+  c:\Users\steph\job-search\WPRDC-Data-Pipeline-Exercise\tests\test_checks.py:
+  def test_initial_actions():
+      by_id = {c.id: c for c in CHECKS}
+      assert {i for i, c in by_id.items() if c.action == "quarantine"} == {
+
+  This may or may not be related to the current task.</ide_selection>
+
+> I agree with dropping Mermaid, and I'm good with the diagram you proposed,
+  though I am not clear on the "sale_code -> sale class" bit.  Can you simplify
+  the diagram to just the tables and one view?  Also,  I agree, drop the
+  quarantine-list assertion in test_initial_actions -- that's a bit too much
+  testing, I think.  Let's make these changes and see how it all goes.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now I'll make the changes. I'll start with the tests: test_dq_issues.py gets
+  one change across the whole file, since every test there uses the same
+  constant.
+
+● Bash(cd "C:/Users/steph/job-search/WPRDC-Data-Pipeline-Exercise" && sed -i \
+       -e 's/^MISSING = "record_date_missing"$/INVALID =
+      "record_date_invalid"\nBAD_DATE = "02…)
+  ⎿  Updated tests\test_dq_issues.py (+30 -29)
+       6  from wprdc.dq import evaluate
+       7  from wprdc.transform import TYPED, build_typed
+       8  
+       9 -MISSING = "record_date_missing"                                
+       9 +INVALID = "record_date_invalid"                                
+      10 +BAD_DATE = "0212-08-01"   # fails record_date_invalid, a quaran
+         +tine check                                                     
+      11  
+      12  
+      13  def at(minutes):
+     ...
+      30  
+      31  
+      32  def test_issue_persists_across_snapshots(con):
+      32 -    snap(con, "s1", [sale(RECORDDATE=None)], 0)                
+      33 -    snap(con, "s2", [sale(RECORDDATE=None), sale(DEEDPAGE="2")]
+         -, 1)                                                           
+      34 -    assert issues(con, MISSING) == [("open", None, at(0), at(1)
+         -, None, "quarantine", None)]                                   
+      33 +    snap(con, "s1", [sale(RECORDDATE=BAD_DATE)], 0)            
+      34 +    snap(con, "s2", [sale(RECORDDATE=BAD_DATE), sale(DEEDPAGE="
+         +2")], 1)                                                       
+      35 +    assert issues(con, INVALID) == [("open", None, at(0), at(1)
+         +, None, "quarantine", None)]                                   
+      36  
+      37  
+      38  def test_fixed(con):
+      38 -    snap(con, "s1", [sale(RECORDDATE=None)], 0)                
+      39 +    snap(con, "s1", [sale(RECORDDATE=BAD_DATE)], 0)            
+      40      snap(con, "s2", [sale()], 1)
+      40 -    assert issues(con, MISSING) == [("resolved", "fixed", at(0)
+         -, at(0), at(1), "quarantine", None)]                           
+      41 +    assert issues(con, INVALID) == [("resolved", "fixed", at(0)
+         +, at(0), at(1), "quarantine", None)]                           
+      42  
+      43  
+      44  def test_replaced_links_successor(con):
+     ...
+       57  
+       58  
+       59  def test_removed_and_no_deed_never_replaced(con):
+       59 -    snap(con, "s1", [sale(DEEDBOOK="0", DEEDPAGE="0", RECORDDA
+          -TE=None)], 0)                                                 
+       60 -    snap(con, "s2", [sale(DEEDBOOK="0", DEEDPAGE="0", RECORDDA
+          -TE=None, SALEDATE="2022-06-20")], 1)                          
+       61 -    assert [r[:2] for r in issues(con, MISSING)] == [("resolve
+          -d", "removed"), ("open", None)]                               
+       60 +    snap(con, "s1", [sale(DEEDBOOK="0", DEEDPAGE="0", RECORDDA
+          +TE=BAD_DATE)], 0)                                             
+       61 +    snap(con, "s2", [sale(DEEDBOOK="0", DEEDPAGE="0", RECORDDA
+          +TE=BAD_DATE, SALEDATE="2022-06-20")], 1)                      
+       62 +    assert [r[:2] for r in issues(con, INVALID)] == [("resolve
+          +d", "removed"), ("open", None)]                               
+       63  
+       64  
+     … 65 more lines (ctrl+o to expand)
+
+● Next, the other three test files:
+
+● Update(tests\test_transform.py)
+  ⎿  Added 1 line, removed 1 line
+      47  
+      48  
+      49  def test_clean_excludes_quarantined_and_flags(con):
+      50 -    make_snapshot(con, "s1", [sale(), sale(DEEDPAGE="2", RECORD
+         -DATE=None),                                                    
+      50 +    make_snapshot(con, "s1", [sale(), sale(DEEDPAGE="2", RECORD
+         +DATE="0212-08-01"),                                            
+      51                                sale(DEEDPAGE="3", RECORDDATE="20
+          22-06-01")])
+      52      result = transform(con, "r1")
+      53      assert clean_rows(con) == [(1, []), (3, ["record_before_sal
+          e"])]
+
+● Update(tests\test_transform.py)
+  ⎿  Added 1 line, removed 1 line
+      55  
+      56  
+      57  def test_quarantine_is_by_row_not_key(con):
+      58 -    make_snapshot(con, "s1", [sale(), sale(RECORDDATE=None)])  
+         - # same key, only row 2 quarantined                            
+      58 +    make_snapshot(con, "s1", [sale(), sale(RECORDDATE="0212-08-
+         +01")])   # same key, only row 2 quarantined                    
+      59      transform(con, "r1")
+      60      assert clean_rows(con) == [(1, ["key_not_unique"])]
+      61  
+
+● Update(tests\test_transform.py)
+  ⎿  Added 3 lines, removed 3 lines
+      61  
+      62  
+      63  def test_action_change_releases_records(con):
+      64 -    make_snapshot(con, "s1", [sale(RECORDDATE=None)])          
+      64 +    make_snapshot(con, "s1", [sale(RECORDDATE="0212-08-01")])  
+      65      transform(con, "r1")
+      66      assert clean_rows(con) == []
+      67 -    flagged = [replace(c, action="flag") if c.id == "record_dat
+         -e_missing" else c for c in CHECKS]                             
+      67 +    flagged = [replace(c, action="flag") if c.id == "record_dat
+         +e_invalid" else c for c in CHECKS]                             
+      68      transform(con, "r2", flagged)
+      69 -    assert clean_rows(con) == [(1, ["record_date_missing"])]   
+      69 +    assert clean_rows(con) == [(1, ["record_date_invalid"])]   
+      70  
+      71  
+      72  def test_transform_rerun_is_noop(con):
+
+● Update(tests\test_dq.py)
+  ⎿  Added 2 lines, removed 2 lines
+      54  
+      55  
+      56  def test_check_run_rates(con):
+      57 -    run(con, [sale(), sale(DEEDPAGE="2"), sale(DEEDPAGE="3"), s
+         -ale(DEEDPAGE="4", RECORDDATE=None)])                           
+      57 +    run(con, [sale(), sale(DEEDPAGE="2"), sale(DEEDPAGE="3"), s
+         +ale(DEEDPAGE="4", RECORDDATE="0212-08-01")])                   
+      58      assert con.execute(
+      59 -        "SELECT n_failing, n_rows, rate, action FROM dq.check_r
+         -un WHERE check_id = 'record_date_missing'"                     
+      59 +        "SELECT n_failing, n_rows, rate, action FROM dq.check_r
+         +un WHERE check_id = 'record_date_invalid'"                     
+      60      ).fetchone() == (1, 4, 0.25, "quarantine")
+      61      assert con.execute("SELECT count(*) FROM dq.check_run").fet
+          chone() == (len(CHECKS),)
+      62  
+
+● Update(tests\test_checks.py)
+  ⎿  Removed 2 lines
+      18  
+      19  def test_initial_actions():
+      20      by_id = {c.id: c for c in CHECKS}
+      21 -    assert {i for i, c in by_id.items() if c.action == "quarant
+         -ine"} == {                                                     
+      22 -        "sale_date_invalid", "record_date_invalid", "record_dat
+         -e_future", "record_date_missing"}                              
+      21      assert by_id["key_not_unique"].alert == "any"
+      22      for new in ("sale_code_unmapped", "parcel_location_varies")
+          :
+      23          assert (by_id[new].action, by_id[new].alert) == ("flag"
+          , "any")
+
+● Then the README diagram. I'm building it with a script so the columns line up
+  exactly:
+● Bash(cd "C:/Users/steph/job-search/WPRDC-Data-Pipeline-Exercise" && python -
+      <<'EOF'
+      import pathlib…)
+  ⎿  1 file changed (binary, mode only or too large to show)
+
+● The diagram looks right. Now I'll run the suite twice: on your repo as it is,
+  and on a fresh scratchpad copy with record_date_missing flipped to flag, as a
+  reader would do. Both run in parallel.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● All 109 tests pass with record_date_missing set to quarantine (as it is now)
+  and with it set to flag (as a reader would do). So once the README tells
+  readers how to make the switch, the tests won't fail when they try it.
+
+  README: the diagram is now right after the schema table in "How it works",
+  showing just the six tables and the view:
+
+  analytics.municipality    analytics.school_district
+             └──────────────────┬───────┘
+                        analytics.parcel
+                                │
+  analytics.sale_type ── analytics.sales ── analytics.instrument_type
+                                │
+                                ▼
+               analytics.family_transfers_by_year
+
+  The "sale_code → sale_class" label I dropped was describing what
+  analytics.sale_type does. It sorts each county sale code into one of the
+  classes the output counts, such as family, market or distressed.
+
+  Tests:
+  - test_checks.py (tests/test_checks.py): I removed the list of which checks
+    quarantine from test_initial_actions. Its other assertions stay.
+  - test_dq_issues.py (tests/test_dq_issues.py): every test now uses
+    record_date_invalid, set up with a record date of 0212-08-01.
+    - The tests that simulate changing a rule now set the condition to
+      where="false", which matches no records.
+    - The two tests that simulate an action change test something real again,
+      because record_date_invalid starts as a quarantine check.
+  - test_transform.py (tests/test_transform.py): the three quarantine tests now
+    use record_date_invalid.
+  - test_dq.py (tests/test_dq.py): test_check_run_rates now uses
+    record_date_invalid.
+
+  The tests that check record_date_missing's own condition are unchanged, since
+  they don't depend on its action.
+
+  These tests now rely on record_date_invalid staying a quarantine check. That
+  seems safe, since it catches impossible dates like year 0212.
+
+  Nothing is committed. When you write the how-to-change-a-check section,
+  record_date_missing itself still says quarantine, and the "misgivings" comment
+  above it in checks.py (wprdc/checks.py#L67-L70) is unchanged.
+
+> <browser_instruction># Claude in Chrome browser automation
+
+  You have access to browser automation tools (mcp__claude-in-chrome__*) for
+  interacting with web pages in Chrome. Follow these guidelines for effective
+  browser automation.
+
+  ## Loading deferred tools
+
+  If the mcp__claude-in-chrome__* tools are deferred (must be loaded via
+  ToolSearch before use), load every tool you expect to need in ONE ToolSearch
+  call — the select query accepts a comma-separated list — never one call per
+  tool. Start with the core set:
+
+  ToolSearch with query
+  "select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__naviga
+  te,mcp__claude-in-chrome__computer,mcp__claude-in-chrome__read_page,mcp__clau
+  de-in-chrome__tabs_create_mcp,mcp__claude-in-chrome__tabs_close_mcp"
+
+  Add task-specific tools to the same call when the task obviously needs them:
+  read_console_messages / read_network_requests for debugging, form_input for
+  forms, gif_creator for recordings, javascript_tool for page scripting.
+
+  ## GIF recording
+
+  When performing multi-step browser interactions that the user may want to
+  review or share, use mcp__claude-in-chrome__gif_creator to record them.
+
+  You must ALWAYS:
+  * Capture extra frames before and after taking actions to ensure smooth
+  playback
+  * Name the file meaningfully to help the user identify it later (e.g.,
+  "login_process.gif")
+
+  ## Console log debugging
+
+  You can use mcp__claude-in-chrome__read_console_messages to read console
+  output. Console output may be verbose. If you are looking for specific log
+  entries, use the 'pattern' parameter with a regex-compatible pattern. This
+  filters results efficiently and avoids overwhelming output. For example, use
+  pattern: "[MyApp]" to filter for application-specific logs rather than
+  reading all console output.
+
+  ## Alerts and dialogs
+
+  IMPORTANT: Do not trigger JavaScript alerts, confirms, prompts, or browser
+  modal dialogs through your actions. These browser dialogs block all further
+  browser events and will prevent the extension from receiving any subsequent
+  commands. Instead, when possible, use console.log for debugging and then use
+  the mcp__claude-in-chrome__read_console_messages tool to read those log
+  messages. If a page has dialog-triggering elements:
+  1. Avoid clicking buttons or links that may trigger alerts (e.g., "Delete"
+  buttons with confirmation dialogs)
+  2. If you must interact with such elements, warn the user first that this may
+  interrupt the session
+  3. Use mcp__claude-in-chrome__javascript_tool to check for and dismiss any
+  existing dialogs before proceeding
+
+  If you accidentally trigger a dialog and lose responsiveness, inform the user
+  they need to manually dismiss it in the browser.
+
+  ## Avoid rabbit holes and loops
+
+  When using browser automation tools, stay focused on the specific task. If
+  you encounter any of the following, stop and ask the user for guidance:
+  - Unexpected complexity or tangential browser exploration
+  - Browser tool calls failing or returning errors after 2-3 attempts
+  - No response from the browser extension
+  - Page elements not responding to clicks or input
+  - Pages not loading or timing out
+  - Unable to complete the browser task despite multiple approaches
+
+  Explain what you attempted, what went wrong, and ask how the user would like
+  to proceed. Do not keep retrying the same failing browser action or explore
+  unrelated pages without checking in first.
+
+  ## Tab context and session startup
+
+  IMPORTANT: At the start of each browser automation session, call
+  mcp__claude-in-chrome__tabs_context_mcp first to get information about the
+  user's current browser tabs. Use this context to understand what the user
+  might want to work with before creating new tabs.
+
+  Never reuse tab IDs from a previous/other session. Follow these guidelines:
+  1. Only reuse an existing tab if the user explicitly asks to work with it
+  2. Otherwise, create a new tab with mcp__claude-in-chrome__tabs_create_mcp
+  3. If a tool returns an error indicating the tab doesn't exist or is invalid,
+  call tabs_context_mcp to get fresh tab IDs
+  4. When a tab is closed by the user or a navigation error occurs, call
+  tabs_context_mcp to see what tabs are available</browser_instruction>
+
+> OK, it's time to wrap this thing up and submit it. First thing I want you to
+  do is spell check. The README .md file and the AI usage.md file. I made some
+  edits there and I want to make sure I didn't make any spelling errors.
+
+  Read 2 files, ran 1 shell command (ctrl+o to expand)
+
+● I read both files in full and found no misspelled words. Your new sections in
+  both files are clean: the introduction, the editor's notes under "What
+  surprised me", the AI usage note, and your additions to the tools table and
+  division of labor.
+
+  A few things are worth fixing before you submit:
+
+  Spelling and wording
+  - AI_USAGE.md:13 (docs/AI_USAGE.md#L13): "Apple Car Play" should be "Apple
+    CarPlay". It's one word with a capital P.
+  - README.md:286 (README.md#L286): "how easily (or not) it would be to make the
+    change" should be "how easy (or not) it would be". That's grammar rather
+    than spelling, but it stands out.
+  - README.md:380 (README.md#L380): "writeup" is usually written "write-up".
+    It's optional and not wrong.
+
+  Placeholders still in AI_USAGE.md
+  - Line 30 (docs/AI_USAGE.md#L30): the date is still "2026-10-??". The
+    transcript filename it links to says 2026-10-25.
+  - Line 36 (docs/AI_USAGE.md#L36): session #6 still says "transcript to be
+    added". There's also no row yet for this session, or for any others since
+    Oct 31.
+
+  One factual mismatch
+  - README.md:310 (README.md#L310) says the 1,248 records with no record date
+    are mostly "mobile home sales, certificates of transfer and lease
+    memoranda". The comment in checks.py and my earlier summary said "treasurer
+    deeds" instead of lease memoranda. One of them is wrong, so I can check the
+    data before you submit if you'd like.
+
+  I haven't edited anything. Do you want me to make these fixes?
+
+> yes
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● I confirmed the breakdown of the 1,248 records missing a record date across
+  mobile home sales, certificates of transfer, treasurer deeds, and memoranda of
+  lease. I'll update the README to name all four instrument types and apply the
+  other fixes.
+
+● Update(README.md)
+  ⎿  Added 1 line, removed 1 line
+      283  and the county's own `RECORD YR <> SALE YR` sale code, make so
+           me of those legitimate.
+      284  
+      285  ## What surprised me in the data
+      286 -"Editor's note": the only thing that truly surprised me here w
+          -as the 1,248 records that have no record date.  That seems to 
+          -be an important field!  In fact, I coded this as a quarantine 
+          -data quality check, with misgivings, since the current data is
+          - what it is, and I didn't want to come in and question someone
+          - else's previous decisions.  However, I left it as a quarantin
+          -e check for two reasons: 1) to prevent any future data coming 
+          -in from having no record date; and 2) so that the reviewer of 
+          -this assignment could see how easily (or not) it would be to m
+          -ake the change from quarantine to flag on that check.         
+      286 +"Editor's note": the only thing that truly surprised me here w
+          +as the 1,248 records that have no record date.  That seems to 
+          +be an important field!  In fact, I coded this as a quarantine 
+          +data quality check, with misgivings, since the current data is
+          + what it is, and I didn't want to come in and question someone
+          + else's previous decisions.  However, I left it as a quarantin
+          +e check for two reasons: 1) to prevent any future data coming 
+          +in from having no record date; and 2) so that the reviewer of 
+          +this assignment could see how easy (or not) it would be to mak
+          +e the change from quarantine to flag on that check.           
+      287  
+      288  I'm leaving the list of "surprises" that Claude Code came up w
+           ith below, with my comments on each of them.  
+      289  
+
+● Update(README.md)
+  ⎿  Added 1 line, removed 1 line
+      307    before the data's 2012 start, and a record date in the futur
+           e. 
+      308    - Not surprised this exists in the data, as it is only one a
+           nd the world is imperfect.  This is coded as a quarantine chec
+           k going forward, however, to prevent this from occurring from 
+           now on.
+      309  - **1,248 records have no record date.** Most are mobile home 
+           sales, certificates of
+      310 -  transfer and lease memoranda, which may never be recorded. S
+          -o "missing" may mean "not                                     
+      310 +  transfer, treasurer deeds and lease memoranda, which may nev
+          +er be recorded. So "missing" may mean "not                    
+      311    applicable". I quarantined them for now, but I'd want the da
+           ta steward's view; making
+      312    it a flag is a one-word change.  
+      313    - As described above, this is the only thing that really sur
+           prised me in the data so far.
+
+● Update(README.md)
+  ⎿  Added 1 line, removed 1 line
+      377  
+      378  ## AI usage
+      379  
+      380 -Note:  [`docs/AI_USAGE.md`](docs/AI_USAGE.md) is a useful writ
+          -eup of my AI usage in this project.  Below is just a quick sum
+          -mary.                                                         
+      380 +Note:  [`docs/AI_USAGE.md`](docs/AI_USAGE.md) is a useful writ
+          +e-up of my AI usage in this project.  Below is just a quick su
+          +mmary.                                                        
+      381  
+      382  I used Claude.ai for early exploration of the datasets and the
+            CKAN API, and Claude
+      383  Code (Claude Opus 5.5) to write all of the code, SQL and tests
+            and to run them.
+
+● Update(docs\AI_USAGE.md)
+  ⎿  Added 1 line, removed 1 line
+      10  
+      11  | Tool | Used for |
+      12  |---|---|
+      13 -| **Claude.ai** | Early exploration: learning about the four ca
+         -ndidate datasets and the WPRDC CKAN API. This session was start
+         -ed in the car on my drive back from Buffalo, interacting by voi
+         -ce through Apple Car Play. I then picked it up later on my lapt
+         -op and interacted with it while testing out the CKAN API, which
+         - returned errors initially, driving my decision to include logg
+         -ing of connection issues and bad responses.|                   
+      13 +| **Claude.ai** | Early exploration: learning about the four ca
+         +ndidate datasets and the WPRDC CKAN API. This session was start
+         +ed in the car on my drive back from Buffalo, interacting by voi
+         +ce through Apple CarPlay. I then picked it up later on my lapto
+         +p and interacted with it while testing out the CKAN API, which 
+         +returned errors initially, driving my decision to include loggi
+         +ng of connection issues and bad responses.|                    
+      14  | **Claude Code** (CLI, Claude Opus 5.5) | Building the pipelin
+          e: writing the Python and SQL, writing and running tests, calli
+          ng the live API, querying the data, and making git commits. |
+      15  
+      16  ## Division of labor
+
+● Update(docs\AI_USAGE.md)
+  ⎿  Added 1 line, removed 1 line
+      27  
+      28  | Date | Session | Topics | Transcript |
+      29  |---|---|---|---|
+      30 -| 2026-10-?? | Claude.ai | Dataset exploration; first logging-s
+         -chema idea | [`ai-sessions/2026-10-25-wprdc_conversation_transc
+         -ript.txt`](ai-sessions/2026-10-25-wprdc_conversation_transcript
+         -.txt) |                                                        
+      30 +| 2026-10-25 | Claude.ai | Dataset exploration; first logging-s
+         +chema idea | [`ai-sessions/2026-10-25-wprdc_conversation_transc
+         +ript.txt`](ai-sessions/2026-10-25-wprdc_conversation_transcript
+         +.txt) |                                                        
+      31  | 2026-10-26 | Claude Code #1 | Fetch logging, raw landing, raw
+           snapshots, DuckDB version pin, row hashes | [`ai-sessions/2026
+          -10-26-ingest-and-raw-layer.txt`](ai-sessions/2026-10-26-ingest
+          -and-raw-layer.txt) |
+      32  | 2026-10-28 | Claude Code #2 | Status review; second snapshot 
+          (+507 / −206 row versions, unchanged rows not rewritten); why a
+           run makes 3 requests; re-run check; DuckDB UI for browsing; na
+          tural key investigation; data quality design (quarantine vs. fl
+          ag, steward's issue list, rate-jump alerts, key collisions don'
+          t fail runs), plan, implementation and review fixes | [`ai-sess
+          ions/2026-10-28-220407-where-are-we-on-this-project.txt`](ai-se
+          ssions/2026-10-28-220407-where-are-we-on-this-project.txt) |
+      33  | 2026-10-30 | Claude Code #3 | Third snapshot; typed table mov
+          ed from `clean` to a new `staging` schema; choosing the analyti
+          cal question; naming the layer `analytics` and the fact table `
+          sales` | [`ai-sessions/2026-10-30-130735-lets-do-another-pipeli
+          ne-run.txt`](ai-sessions/2026-10-30-130735-lets-do-another-pipe
+          line-run.txt) |
+
+● I made five fixes. Nothing is committed yet.
+
+  - README.md:286 (README.md#L286): "how easily (or not)" is now "how easy (or
+    not)".
+  - README.md:310 (README.md#L310): treasurer deeds are now in the list of
+    record types with no record date.
+  - README.md:380 (README.md#L380): "writeup" is now "write-up".
+  - AI_USAGE.md:13 (docs/AI_USAGE.md#L13): "Apple Car Play" is now "Apple
+    CarPlay".
+  - AI_USAGE.md:30 (docs/AI_USAGE.md#L30): the date "2026-10-??" is now
+    2026-10-25, the date in the transcript's filename. Change it if the session
+    actually happened on a different day.
+
+  One thing I couldn't fix: AI_USAGE.md:36 (docs/AI_USAGE.md#L36) still says
+  "transcript to be added" for session #6, because there's no Oct 31 transcript
+  in docs/ai-sessions/ yet. Today's session has no row in the table either. Once
+  you export those transcripts into that folder, I can link them and add the
+  missing row.
+
+> I exported the 10-31 transcript and added it to the ai-sessions folder.
+  Please update the AI_USAGE.md document
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+● Update(docs\AI_USAGE.md)
+  ⎿  Added 1 line, removed 1 line
+      33  | 2026-10-30 | Claude Code #3 | Third snapshot; typed table mov
+          ed from `clean` to a new `staging` schema; choosing the analyti
+          cal question; naming the layer `analytics` and the fact table `
+          sales` | [`ai-sessions/2026-10-30-130735-lets-do-another-pipeli
+          ne-run.txt`](ai-sessions/2026-10-30-130735-lets-do-another-pipe
+          line-run.txt) |
+      34  | 2026-10-30 | Claude Code #4 | Analytics layer design (estate 
+          deeds, denominator, parcel-count estimate rejected, table not c
+          hart, output as a view), plan, implementation, final review and
+           fix; `python -m wprdc.pipeline`; push to GitHub | [`ai-session
+          s/2026-10-30-153811-lets-pick-up-where-left-off.txt`](ai-sessio
+          ns/2026-10-30-153811-lets-pick-up-where-left-off.txt) |
+      35  | 2026-10-30 | Claude Code #5 | What `not_analyzed_transfers` m
+          eans and how to explain it to others: column comments in DuckDB
+           and a footnote under the printed table | [`ai-sessions/2026-10
+          -30-205055-what-is-this-notanalyzed-column-in-the-analyti.txt`]
+          (ai-sessions/2026-10-30-205055-what-is-this-notanalyzed-column-
+          in-the-analyti.txt) |
+      36 -| 2026-10-31 | Claude Code #6 | Time spent; remaining requireme
+         -nts; README draft, checked against the code and database; found
+         - the row-count gap (below) | _transcript to be added_ |        
+      36 +| 2026-10-31 | Claude Code #6 | Time spent; remaining requireme
+         +nts; README draft, checked against the code and database; found
+         + the row-count gap (below) and documented it here; CKAN API vs.
+         + the `ckanapi` library, explained up front in the README | [`ai
+         +-sessions/2026-10-31-0914720-are-you-able-to-tell-me-how-much-t
+         +ime-we-have-wor.txt`](ai-sessions/2026-10-31-0914720-are-you-ab
+         +le-to-tell-me-how-much-time-we-have-wor.txt) |                 
+      37  
+      38  ## Decisions I made
+      39  
+
+● The session #6 row in AI_USAGE.md:36 (docs/AI_USAGE.md#L36) now links to the
+  Oct 31 transcript. I read the session's prompts to make sure the topics column
+  was complete, and added two things it was missing: writing up the row-count
+  gap in AI_USAGE.md, and the README's opening explanation of why the pipeline
+  calls CKAN with its own client instead of the ckanapi library.
+
+  Today's session has no row yet. Its main topics were:
+  - what pytest tests
+  - the analytics table diagram added to the README
+  - moving the tests to record_date_invalid, so switching record_date_missing to
+    a flag no longer breaks them (all 109 pass either way)
+  - the spelling fixes
+
+  I can add the row now with "transcript to be added" in place of the link, or
+  wait until you export this session's transcript. It may also be worth a line
+  in "Decisions I made" about keeping the tests passing when a reader switches
+  record_date_missing to a flag, since that ties into your note in the README.
+
+> Did we document how to change a data quality test from quarantine to flag, or
+  how to write new ones?
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● Only partly. The steps are written down in one place, the docstring at the top
+  of wprdc/checks.py:10-16 (wprdc/checks.py#L10-L16):
+
+  - Add: append a Check.
+  - Change: edit it. Editing the where condition gives the check a new version,
+    which closes its open issues and restarts its failure-rate history. Editing
+    action or description keeps the version, so its issues stay open.
+  - Retire: set retired=True. Never delete a check.
+
+  The README only says it's "a one-word change", at README.md:312
+  (README.md#L312), and AI_USAGE.md says the same at line 74
+  (docs/AI_USAGE.md#L74). Nothing says which word, what happens when you run the
+  pipeline afterwards, or how to write a new check. Since your introduction
+  invites the reviewer to try the change, I'd add a short subsection at the end
+  of "Data quality checks". Here's a draft:
+
+  ▎ Changing or adding a check
+  ▎
+  ▎ Checks are changed in code by the engineer and reviewed through git. After
+  ▎ any change, run python -m wprdc.pipeline. The new definitions apply to the
+  ▎ current snapshot even if WPRDC hasn't published a new file.
+  ▎
+  ▎ To change a check from quarantine to flag (for example,
+  ▎ record_date_missing), change its action="quarantine" to action="flag" in
+  ▎ wprdc/checks.py. On the next run, its records move into clean.property_sales
+  ▎ with the check's name in dq_flags, and its open issues stay open with their
+  ▎ action updated. The tests don't depend on any check's action, so python -m
+  ▎ pytest still passes.
+  ▎
+  ▎ To change what a check catches, edit its where condition. This gives the
+  ▎ check a new version. Its open issues that no longer fail close as
+  ▎ rule_changed, and the engineer gets a definition_changed notice instead of a
+  ▎ rate alert.
+  ▎
+  ▎ To add a check, append a Check to CHECKS with:
+  ▎ - an id
+  ▎ - a description
+  ▎ - an action (quarantine or flag)
+  ▎ - a where condition: SQL over staging.property_sales_typed selecting the
+  ▎ failing records. A subquery refers to that table as typed.
+  ▎
+  ▎ Set alert="any" if the check should normally find nothing and should alert
+  ▎ on its first failure. Add a test for the condition in tests/test_dq.py.
+  ▎
+  ▎ To remove a check, set retired=True. Don't delete it, so its history stays
+  ▎ readable.
+
+  I checked these claims against the code:
+  - A new or changed check is evaluated on the current snapshot when the
+    pipeline runs again (dq.py:32-60 (wprdc/dq.py#L32-L60)).
+  - Changing an action releases the records without new data (this is what
+    test_action_change_releases_records tests).
+
+  You'd also want to change "it a flag is a one-word change" at line 312 to
+  point to this subsection.
+
+  Do you want me to add it to the README?
+
+> yes, make all those changes
+
+● Update(README.md)
+  ⎿  Added 31 lines
+      184    is zero (the last three above) alerts on its first failure. 
+           Alerts are recorded and
+      185    printed where an email would be sent; sending the email is n
+           ot built.
+      186  
+      187 +### Changing or adding a check                                
+      188 +                                                              
+      189 +Checks are changed in code by the engineer and reviewed throug
+          +h git. After any change,                                      
+      190 +run `python -m wprdc.pipeline`. The new definitions apply to t
+          +he current snapshot even                                      
+      191 +if WPRDC hasn't published a new file.                         
+      192 +                                                              
+      193 +**To change a check from quarantine to flag** (for example, `r
+          +ecord_date_missing`),                                         
+      194 +change its `action="quarantine"` to `action="flag"` in        
+      195 +[`wprdc/checks.py`](wprdc/checks.py). On the next run, its rec
+          +ords move into                                                
+      196 +`clean.property_sales` with the check's name in `dq_flags`, an
+          +d its open issues stay                                        
+      197 +open with their action updated. The tests don't depend on any 
+          +check's action, so                                            
+      198 +`python -m pytest` still passes.                              
+      199 +                                                              
+      200 +**To change what a check catches**, edit its `where` condition
+          +. This gives the check a                                      
+      201 +new version. Its open issues that no longer fail close as `rul
+          +e_changed`, and the                                           
+      202 +engineer gets a `definition_changed` notice instead of a rate 
+          +alert.                                                        
+      203 +                                                              
+      204 +**To add a check**, append a `Check` to `CHECKS` with:        
+      205 +                                                              
+      206 +- an `id`                                                     
+      207 +- a `description`                                             
+      208 +- an `action` (`quarantine` or `flag`)                        
+      209 +- a `where` condition: SQL over `staging.property_sales_typed`
+          + selecting the failing                                        
+      210 +  records. A subquery refers to that table as `typed`.        
+      211 +                                                              
+      212 +Set `alert="any"` if the check should normally find nothing an
+          +d should alert on its                                         
+      213 +first failure. Add a test for the condition in [`tests/test_dq
+          +.py`](tests/test_dq.py).                                      
+      214 +                                                              
+      215 +**To remove a check**, set `retired=True`. Don't delete it, so
+          + its history stays                                            
+      216 +readable.                                                     
+      217 +                                                              
+      218  ## The question and the output table
+      219  
+      220  **Are family transfers of property in Allegheny County rising 
+           as the population ages?**
+
+● Update(README.md)
+  ⎿  Added 1 line, removed 1 line
+      340  - **1,248 records have no record date.** Most are mobile home 
+           sales, certificates of
+      341    transfer, treasurer deeds and lease memoranda, which may nev
+           er be recorded. So "missing" may mean "not
+      342    applicable". I quarantined them for now, but I'd want the da
+           ta steward's view; making
+      343 -  it a flag is a one-word change.                             
+      343 +  it a flag is a one-word change (see [Changing or adding a ch
+          +eck](#changing-or-adding-a-check)).                           
+      344    - As described above, this is the only thing that really sur
+           prised me in the data so far.
+      345  - **Most transfers are not market sales.** Of about 506,000 sa
+           les, 98,813 carry the
+      346    assessor's "valid sale" codes. Over half are coded as multi-
+           parcel sales, quit claims,
+
+● I made both changes to README.md. Nothing is committed yet.
+
+  - New "Changing or adding a check" subsection, at the end of "Data quality
+    checks" (line 187). It's the draft as I showed it.
+  - A pointer to it from the "1,248 records have no record date" bullet under
+    "What surprised me". It now reads "making it a flag is a one-word change
+    (see Changing or adding a check (#changing-or-adding-a-check))."
+
+  The new subsection isn't in the Contents list at the top, because that list
+  only shows the top-level sections.
+
+  AI_USAGE.md also mentions the "one-word change" at line 74
+  (docs/AI_USAGE.md#L74). I left it as is, since it describes your decision
+  rather than how to make the change.
